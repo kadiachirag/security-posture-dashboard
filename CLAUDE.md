@@ -4,28 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-This folder holds small standalone browser projects: a tic-tac-toe game in `tictactoe/index.html` and a security posture dashboard in `FableTechDay/`. There is no package manager, build step, test runner, or linter. The folder is a git repository (default branch `main`).
+This repository holds a single standalone browser project: the security posture dashboard in `FableTechDay/`. Everything (markup, CSS, JS) lives in one HTML file with no external dependencies; keep it that way unless asked otherwise. There is no package manager, build step, test runner, or linter. The default branch is `main`, pushed to `github.com/kadiachirag/security-posture-dashboard`.
 
 ## Running
 
 Open the HTML file directly in a browser. From PowerShell:
 
 ```powershell
-Start-Process .\tictactoe\index.html
 Start-Process .\FableTechDay\index.html
 ```
 
 After editing, refresh the browser tab to see changes. No server is required. Node is not installed on this machine; for a headless render check, Edge works: `msedge --headless=new --screenshot=out.png file:///<path>/index.html#<tab>`.
-
-## Architecture: `tictactoe/index.html`
-
-Everything (markup, CSS, JS) lives in this single file with no external dependencies. Keep it that way unless asked otherwise.
-
-- **Theme colors** are CSS custom properties in the `:root` block at the top of the `<style>` section. Change colors there rather than in individual rules. The current theme is light; translucent `rgba` highlights (active mode button, winning cells, panel shadow) are tuned for a light background and should be adjusted if the theme changes.
-- **State** is a 9-element `board` array (`'X'`, `'O'`, or `null`), plus `current`, `gameOver`, `vsComputer`, `startingPlayer`, and a `scores` object. The 9 cell buttons are created in JS at load and stored in `cells`, indexed to match `board`.
-- **Game flow**: `handleMove` -> `place` -> (`winningLine` / draw check) -> `endGame` or switch turn. `place` is the only function that mutates `board` and the DOM for a move; both human and computer moves go through it.
-- **Computer opponent** always plays `O` and uses a full minimax search (`computerMove` / `minimax`), so it is unbeatable. Scores are depth-adjusted so it prefers faster wins and slower losses. The computer's move is dispatched via `setTimeout` from `handleMove` and `newRound`, so guard any new turn logic against the human clicking while the computer's move is pending (`handleMove` already ignores clicks when it is `O`'s turn in computer mode).
-- **Rounds**: the starting player alternates after each finished game. `resetScores` also resets the starting player to `X`; switching modes calls `resetScores`.
 
 ## Architecture: `FableTechDay/`
 
