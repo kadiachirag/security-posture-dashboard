@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="970" viewBox="0 0 1200 970" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="13" fill="#1f2937">
+  <title>Security Posture Dashboard architecture</title>
+  <desc>One authored sample dataset feeds two deliverables: a single-file HTML dashboard and an Azure Monitor Workbook template with sample and live tiles. Findings across Entra ID, Azure resources, Defender and AI and Agents map to MCSB, CIS Azure v3.0, CIS M365 v4 and the OWASP AI Top 10 lists.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#6b7280"/>
+    </marker>
+    <marker id="arrow-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2563eb"/>
+    </marker>
+    <style>
+      .panel { fill: #ffffff; stroke: #e1e0d9; stroke-width: 1; rx: 10; }
+      .box { fill: #f0f4f8; stroke: #c3c2b7; stroke-width: 1; rx: 6; }
+      .box-blue { fill: #e8f0fb; stroke: #2a78d6; }
+      .box-orange { fill: #fdeee7; stroke: #eb6834; }
+      .box-violet { fill: #ece9f9; stroke: #4a3aa7; }
+      .box-dashed { fill: #fafafa; stroke: #898781; stroke-dasharray: 5 4; }
+      .h { font-size: 15px; font-weight: 600; }
+      .h2 { font-size: 13px; font-weight: 600; }
+      .muted { fill: #6b7280; font-size: 11.5px; }
+      .small { font-size: 11.5px; }
+      .mono { font-family: Consolas, 'Cascadia Mono', monospace; font-size: 11.5px; }
+      .flow { fill: none; stroke: #6b7280; stroke-width: 1.5; marker-end: url(#arrow); }
+      .line { fill: none; stroke: #6b7280; stroke-width: 1.5; }
+      .flow-accent { fill: none; stroke: #2563eb; stroke-width: 1.5; marker-end: url(#arrow-accent); }
+      .flow-dashed { fill: none; stroke: #6b7280; stroke-width: 1.5; stroke-dasharray: 6 4; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect width="1200" height="970" fill="#f9f9f7"/>
+  <text x="40" y="38" class="h" font-size="20">Security Posture Dashboard: architecture</text>
+  <text x="40" y="58" class="muted">Entra ID, Azure resources, Microsoft Defender and AI &amp; Agents findings mapped to MCSB, CIS Azure v3.0, CIS M365 v4 and the OWASP AI Top 10 lists. Sample data only; no tenant access.</text>
+
+  <!-- ===== Data layer ===== -->
+  <rect x="40" y="80" width="1120" height="118" class="panel"/>
+  <text x="56" y="104" class="h">Sample dataset (authored once, top of the script in index.html)</text>
+  <text x="56" y="121" class="muted">Source of truth for both deliverables. Every number on screen derives from these constants.</text>
+
+  <rect x="56" y="134" width="222" height="48" class="box box-blue"/>
+  <text x="66" y="153" class="mono" font-weight="600">FINDINGS[62]</text>
+  <text x="66" y="167" class="small">id · domain · severity · status · atlas</text>
+  <text x="66" y="179" class="small" fill="#2563eb">mcsb · cisAzure · cisM365 · owasp</text>
+
+  <rect x="288" y="134" width="150" height="48" class="box"/>
+  <text x="298" y="153" class="mono" font-weight="600">CVES[15]</text>
+  <text x="298" y="170" class="small">CVSS · exploit · exposure</text>
+
+  <rect x="448" y="134" width="156" height="48" class="box"/>
+  <text x="458" y="153" class="mono" font-weight="600">SECURE_SCORE</text>
+  <text x="458" y="170" class="small">DfC · Microsoft 365</text>
+
+  <rect x="614" y="134" width="140" height="48" class="box"/>
+  <text x="624" y="153" class="mono" font-weight="600">DFC_CIS</text>
+  <text x="624" y="170" class="small">CIS, as reported</text>
+
+  <rect x="764" y="134" width="200" height="48" class="box box-violet"/>
+  <text x="774" y="153" class="mono" font-weight="600">STATS · AI_ALERTS · AGENTS</text>
+  <text x="774" y="170" class="small">KPIs · alerts · agents</text>
+
+  <rect x="974" y="134" width="170" height="48" class="box"/>
+  <text x="984" y="153" class="mono" font-weight="600">CONTROL_NAMES</text>
+  <text x="984" y="170" class="small">FRAMEWORKS · 122 titles</text>
+
+  <!-- ===== Left: HTML dashboard ===== -->
+  <rect x="40" y="230" width="540" height="456" class="panel"/>
+  <text x="56" y="256" class="h">Deliverable 1: index.html (single-file browser dashboard)</text>
+  <text x="56" y="273" class="muted">Vanilla JS + CSS, no external dependencies, works from file://, tabs deep-linkable via #hash</text>
+
+  <rect x="56" y="290" width="508" height="40" class="box"/>
+  <text x="66" y="308" class="h2">state</text>
+  <text x="66" y="323" class="mono">tab · filters {domain, severities, status, framework, control, q} · sort</text>
+
+  <path d="M 310 330 L 310 348" class="flow"/>
+
+  <rect x="56" y="350" width="508" height="64" class="box"/>
+  <text x="66" y="368" class="h2">derive</text>
+  <text x="66" y="383" class="mono">applyFilters(FINDINGS) → summarize() · rollup(benchmark) · coverage(taxonomy)</text>
+  <text x="66" y="396" class="small">control fails if any mapped finding fails · OWASP shown as 10-cell coverage, never a %</text>
+  <text x="66" y="408" class="small">postureScore = mean(findings score, Defender for Cloud %, Microsoft Secure Score %)</text>
+
+  <path d="M 310 414 L 310 432" class="flow"/>
+
+  <rect x="56" y="434" width="508" height="72" class="box"/>
+  <text x="66" y="452" class="h2">render()  — rebuilds only the active tab panel</text>
+  <rect x="66" y="462" width="74" height="34" rx="5" fill="#ffffff" stroke="#c3c2b7"/><text x="103" y="483" text-anchor="middle" class="small">Overview</text>
+  <rect x="146" y="462" width="70" height="34" rx="5" fill="#ffffff" stroke="#2a78d6"/><text x="181" y="483" text-anchor="middle" class="small">Entra ID</text>
+  <rect x="222" y="462" width="96" height="34" rx="5" fill="#ffffff" stroke="#eb6834"/><text x="270" y="483" text-anchor="middle" class="small">Azure resources</text>
+  <rect x="324" y="462" width="70" height="34" rx="5" fill="#ffffff" stroke="#1baf7a"/><text x="359" y="483" text-anchor="middle" class="small">Defender</text>
+  <rect x="400" y="462" width="76" height="34" rx="5" fill="#ffffff" stroke="#4a3aa7"/><text x="438" y="483" text-anchor="middle" class="small">AI &amp; Agents</text>
+  <rect x="482" y="462" width="72" height="34" rx="5" fill="#ffffff" stroke="#c3c2b7"/><text x="518" y="478" text-anchor="middle" class="small">Compliance</text><text x="518" y="490" text-anchor="middle" class="small">mapping</text>
+
+  <path d="M 310 506 L 310 524" class="flow"/>
+
+  <rect x="56" y="526" width="508" height="74" class="box"/>
+  <text x="66" y="544" class="h2">UI components (all hand-rolled)</text>
+  <text x="66" y="560" class="small">Filter row (scopes every tab) · SVG charts with table twins · sortable tables · control-ID chips</text>
+  <text x="66" y="574" class="small">OWASP coverage strips · agent inventory · Defender for AI alerts · CVE table</text>
+  <text x="66" y="588" class="small">Detail drawer (description, remediation, control titles, ATLAS refs) · one delegated tooltip</text>
+
+  <text x="56" y="626" class="muted">Verified headless in Edge: six tabs, filters, chip click, drawer, by-control view.</text>
+  <text x="56" y="642" class="muted">Docs: README.md · docs/ARCHITECTURE.md · docs/DATA-MODEL.md</text>
+
+  <!-- ===== Right: Workbook ===== -->
+  <rect x="620" y="230" width="540" height="456" class="panel"/>
+  <text x="636" y="256" class="h">Deliverable 2: workbook.json (Azure Monitor Workbook template)</text>
+  <text x="636" y="273" class="muted">Import via Monitor › Workbooks › Advanced Editor. 87 items, six groups, same tiles as the dashboard.</text>
+
+  <rect x="636" y="290" width="508" height="40" class="box"/>
+  <text x="646" y="308" class="h2">parameters</text>
+  <text x="646" y="323" class="mono">Subscription (multi) · Workspace · TimeRange (30d) · DataMode = sample | live</text>
+
+  <path d="M 890 330 L 890 348" class="flow"/>
+
+  <rect x="636" y="350" width="508" height="40" class="box"/>
+  <text x="646" y="368" class="h2">tabs (links item) → one group per tab</text>
+  <text x="646" y="383" class="mono">selectedTab = overview | entra | azure | defender | ai | compliance</text>
+
+  <path d="M 758 390 L 758 408" class="flow"/>
+  <path d="M 1022 390 L 1022 408" class="flow"/>
+
+  <rect x="636" y="410" width="244" height="72" class="box box-blue"/>
+  <text x="646" y="428" class="h2">&lt;tile&gt;-sample</text>
+  <text x="646" y="444" class="mono">queryType: 8 (static JSON)</text>
+  <text x="646" y="459" class="small">embedded copy of the dataset rows</text>
+  <text x="646" y="473" class="small">visible when DataMode = sample</text>
+
+  <rect x="900" y="410" width="244" height="72" class="box box-orange"/>
+  <text x="910" y="428" class="h2">&lt;tile&gt;-live</text>
+  <text x="910" y="444" class="mono">ARG · Logs · or a text note</text>
+  <text x="910" y="459" class="small">same title and size as its sample twin</text>
+  <text x="910" y="473" class="small">visible when DataMode = live</text>
+
+  <!-- live tile -> both sources -->
+  <path d="M 1022 482 L 1022 492 L 758 492" class="line"/>
+  <path d="M 758 492 L 758 500" class="flow"/>
+  <path d="M 1022 492 L 1022 500" class="flow"/>
+
+  <rect x="636" y="502" width="244" height="96" class="box"/>
+  <text x="646" y="520" class="h2">Azure Resource Graph</text>
+  <text x="646" y="535" class="mono">securityresources</text>
+  <text x="646" y="549" class="small">assessments · securescores · pricings</text>
+  <text x="646" y="563" class="small">alerts · regulatorycompliance (CIS)</text>
+  <text x="646" y="579" class="mono">microsoft.cognitiveservices</text>
+  <text x="646" y="593" class="small">AI accounts · model deployments</text>
+
+  <rect x="900" y="502" width="244" height="96" class="box"/>
+  <text x="910" y="520" class="h2">Log Analytics workspace</text>
+  <text x="910" y="535" class="mono">SigninLogs · AuditLogs · AADRiskyUsers</text>
+  <text x="910" y="549" class="mono">ServicePrincipalSignInLogs · DeviceTvm*</text>
+  <text x="910" y="563" class="mono">CloudAppEvents · McasShadowItReporting</text>
+  <text x="910" y="577" class="mono">AzureDiagnostics (Azure OpenAI)</text>
+  <text x="910" y="591" class="mono">PowerPlatformAdminActivity</text>
+
+  <rect x="636" y="608" width="508" height="66" class="box box-dashed"/>
+  <text x="646" y="624" class="h2" fill="#6b7280">No live tile (Graph, admin center or authored data) → text note in live mode</text>
+  <text x="646" y="639" class="small" fill="#6b7280">MFA registration · Conditional Access · PIM · consent and guest settings</text>
+  <text x="646" y="653" class="small" fill="#6b7280">Microsoft 365 Secure Score · Purview DSPM for AI · Copilot Studio inventory</text>
+  <text x="646" y="667" class="small" fill="#6b7280">Entra Agent ID · MCP catalog · OWASP mapping</text>
+
+  <!-- ===== Arrows from dataset ===== -->
+  <path d="M 161 182 L 161 290" class="flow-accent"/>
+  <text x="168" y="222" class="small" fill="#2563eb">embedded inline</text>
+
+  <path d="M 250 182 L 250 214 L 600 214 L 600 446 L 636 446" class="flow-dashed"/>
+  <text x="290" y="210" class="small" fill="#6b7280">manual sync: JSON-encoded copy of the same rows into the sample tiles</text>
+
+  <!-- ===== Frameworks ===== -->
+  <rect x="40" y="718" width="1120" height="164" class="panel"/>
+  <text x="56" y="744" class="h">Framework mapping (per finding, arrays of control or category IDs)</text>
+  <text x="56" y="761" class="muted">Benchmarks → rollup(): dedupe by ID · fail if any mapped finding fails · partial if any warn · only referenced controls count · % passing</text>
+
+  <rect x="56" y="774" width="235" height="40" class="box"/>
+  <text x="66" y="792" class="h2">MCSB v1</text>
+  <text x="66" y="807" class="small">IM · PA · NS · DP · LT · IR · PV · ES · BR · AM</text>
+
+  <rect x="303" y="774" width="265" height="40" class="box"/>
+  <text x="313" y="792" class="h2">CIS Microsoft Azure Foundations v3.0</text>
+  <text x="313" y="807" class="small">§2 Identity · §3 Defender · §4–10 workloads</text>
+
+  <rect x="580" y="774" width="280" height="40" class="box"/>
+  <text x="590" y="792" class="h2">CIS Microsoft 365 Foundations v4</text>
+  <text x="590" y="807" class="small">§1 admin · §2–3 Defender · §5 Entra · §6 Exchange</text>
+
+  <rect x="872" y="774" width="272" height="40" class="box box-dashed"/>
+  <text x="882" y="792" class="h2">Defender for Cloud built-in CIS (reported)</text>
+  <text x="882" y="807" class="small">v2.0.0 numbering; shown separately, never merged</text>
+
+  <text x="56" y="836" class="muted">Taxonomies → coverage(): 10 fixed categories · fail / warn / pass / not assessed · never a percentage · excluded from the rollup</text>
+
+  <rect x="56" y="842" width="350" height="32" class="box box-violet"/>
+  <text x="66" y="863" class="small" font-weight="600">OWASP Top 10 for LLM Applications 2025 · LLM01–LLM10</text>
+
+  <rect x="418" y="842" width="370" height="32" class="box box-violet"/>
+  <text x="428" y="863" class="small" font-weight="600">OWASP Top 10 for Agentic Applications 2025 · ASI01–ASI10</text>
+
+  <rect x="800" y="842" width="344" height="32" class="box box-dashed"/>
+  <text x="810" y="863" class="small" font-weight="600" fill="#6b7280">MITRE ATLAS techniques · drawer annotation only</text>
+
+  <path d="M 120 686 L 120 718" class="flow"/>
+  <path d="M 1008 686 L 1008 718" class="flow-dashed"/>
+
+  <text x="40" y="910" class="muted">Colours: blue = Entra ID, orange = Azure resources, aqua = Defender, violet = AI &amp; Agents (categorical, never reassigned on filter). Severity and status colours are always paired with a text label.</text>
+  <text x="40" y="928" class="muted">Files: FableTechDay/index.html · workbook.json · queries.kql · README.md · docs/ARCHITECTURE.md · docs/DATA-MODEL.md · docs/architecture.svg</text>
+  <text x="40" y="946" class="muted">Repo convention: no package manager, build step, tests or linter. Open the HTML directly; import the workbook JSON into the Azure portal.</text>
+</svg>

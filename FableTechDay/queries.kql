@@ -1,0 +1,255 @@
+// Security Posture Dashboard - live queries
+// Readable copy of every live query embedded in workbook.json (same folder).
+//
+// How to run:
+//  * ARG  queries: run in Azure Resource Graph Explorer (portal) or leave them in the workbook.
+//                  They read the securityresources table (Defender for Cloud assessments, secure
+//                  scores, pricings, alerts, regulatory compliance) across the selected subscriptions.
+//  * Logs queries: need a Log Analytics workspace. SigninLogs / AuditLogs / AADRiskyUsers require Entra ID
+//                  diagnostic settings (SignInLogs, AuditLogs, RiskyUsers) streaming to the workspace.
+//                  DeviceTvm* tables require the Microsoft Defender XDR data connector in Microsoft Sentinel
+//                  (Tenant-based tables). Alternatively run those queries unchanged in Defender XDR
+//                  Advanced Hunting, removing any {TimeRange} filter.
+//  * {TimeRange} is a workbook time-range parameter. Outside a workbook replace
+//      | where TimeGenerated {TimeRange}
+//    with
+//      | where TimeGenerated > ago(30d)
+//    (or add that line where the query has no explicit time filter and you want one).
+//  * The Identity KPIs, Microsoft Secure Score and Framework rollup / Cross-reference tiles have no live
+//    query: the data is only reachable through Microsoft Graph (or is authored mapping data), so the
+//    workbook shows a text note in Live mode instead.
+//  * AI & Agents queries read Resource Graph (Cognitive Services accounts and deployments, Defender pricings, alerts,
+//    assessments) and Log Analytics (AzureDiagnostics for Azure OpenAI, CloudAppEvents, McasShadowItReporting,
+//    AADServicePrincipalSignInLogs, PowerPlatformAdminActivity). Property, table and plan names in the AI area change
+//    often: verify each query against a real tenant before relying on it. Agent inventory, Purview DSPM for AI reports
+//    and the OWASP coverage mapping have no live query and show a text note in Live mode.
+
+// ---- overview/domain-summary-live  (ARG ; Findings by domain (live: Defender for Cloud assessments only))
+// Note: live mode covers Defender for Cloud assessments only; Entra ID and Defender XDR findings are not in ARG.
+securityresources
+| where type == "microsoft.security/assessments"
+| extend Status = tostring(properties.status.code), Categories = tostring(properties.metadata.categories)
+| extend Domain = case(Categories has "IdentityAndAccess", "Identity and access", Categories has "Compute", "Compute", Categories has "Data", "Data", Categories has "Networking", "Networking", Categories has "IoT", "IoT", "Other")
+| summarize Fail = countif(Status == "Unhealthy"), Pass = countif(Status == "Healthy"), NotApplicable = countif(Status == "NotApplicable") by Domain
+| order by Fail desc
+
+// ---- overview/secure-scores-live  (ARG ; Secure scores)
+securityresources
+| where type == "microsoft.security/securescores"
+| extend Current = toint(properties.score.current), Max = toint(properties.score.max), Percentage = round(todouble(properties.score.percentage)*100, 1)
+| project subscriptionId, Current, Max, Percentage
+
+// ---- overview/open-by-severity-live  (ARG ; Open findings by severity)
+securityresources
+| where type == "microsoft.security/assessments"
+| extend Status = tostring(properties.status.code), Severity = tostring(properties.metadata.severity)
+| where Status == "Unhealthy"
+| summarize Count = count() by Severity
+
+// ---- overview/top-open-findings-live  (ARG ; Top open findings)
+securityresources
+| where type == "microsoft.security/assessments"
+| extend Status = tostring(properties.status.code), Severity = tostring(properties.metadata.severity), DisplayName = tostring(properties.displayName)
+| where Status == "Unhealthy"
+| summarize Affected = count() by DisplayName, Severity
+| top 25 by Affected
+
+// ---- entra/legacy-auth-live  (Logs ; Legacy authentication sign-ins)
+SigninLogs
+| where TimeGenerated {TimeRange} and ResultType == 0
+| where ClientAppUsed !in ("Browser", "Mobile Apps and Desktop clients")
+| summarize SignIns = count(), Users = dcount(UserPrincipalName) by ClientAppUsed
+| order by SignIns desc
+
+// ---- entra/mfa-signins-live  (Logs ; Sign-ins by MFA requirement)
+SigninLogs
+| where TimeGenerated {TimeRange} and ResultType == 0
+| extend Auth = iff(AuthenticationRequirement == "multiFactorAuthentication", "MFA", "Single factor")
+| summarize SignIns = count(), Users = dcount(UserPrincipalName) by Auth
+
+// ---- entra/priv-role-changes-live  (Logs ; Privileged role assignment changes)
+// Note: the index into TargetResources[0].modifiedProperties (here [1] = Role.DisplayName) varies by
+//       operation and tenant. Verify with a sample AuditLogs row and adjust, or use mv-expand and filter on displayName == "Role.DisplayName".
+AuditLogs
+| where TimeGenerated {TimeRange}
+| where OperationName has_any ("Add member to role", "Add eligible member to role")
+| extend Target = tostring(TargetResources[0].userPrincipalName), Actor = coalesce(tostring(InitiatedBy.user.userPrincipalName), tostring(InitiatedBy.app.displayName)), Role = tostring(TargetResources[0].modifiedProperties[1].newValue)
+| project TimeGenerated, OperationName, Role, Target, Actor
+
+// ---- entra/risky-users-live  (Logs ; Risky users)
+AADRiskyUsers
+| summarize arg_max(TimeGenerated, *) by UserPrincipalName
+| where RiskState in ("atRisk", "confirmedCompromised")
+| summarize Users = count() by RiskLevel
+
+// ---- entra/entra-findings-live  (ARG ; Entra findings)
+securityresources
+| where type == "microsoft.security/assessments"
+| where tostring(properties.metadata.categories) has "IdentityAndAccess"
+| extend DisplayName = tostring(properties.displayName), Status = tostring(properties.status.code), Severity = tostring(properties.metadata.severity)
+| summarize Resources = count() by DisplayName, Status, Severity
+
+// ---- azure/unhealthy-by-type-live  (ARG ; Unhealthy resources by resource type)
+securityresources
+| where type == "microsoft.security/assessments"
+| extend Status = tostring(properties.status.code), Severity = tostring(properties.metadata.severity), ResourceId = tolower(tostring(properties.resourceDetails.Id))
+| where Status == "Unhealthy"
+| extend ResourceType = case(ResourceId has "microsoft.storage/", "Storage", ResourceId has "microsoft.network/", "Network", ResourceId has "microsoft.keyvault/", "Key Vault", ResourceId has "microsoft.sql/", "SQL", ResourceId has "microsoft.compute/" or ResourceId has "microsoft.hybridcompute/", "Compute", ResourceId has "microsoft.web/", "App Service", ResourceId has "/resourcegroups/", "Other", "Subscription")
+| summarize Unhealthy = count() by ResourceType
+| order by Unhealthy desc
+
+// ---- azure/secure-score-controls-live  (ARG ; Secure score controls)
+securityresources
+| where type == "microsoft.security/securescores/securescorecontrols"
+| extend Control = tostring(properties.displayName), Current = todouble(properties.score.current), Max = todouble(properties.score.max), Unhealthy = toint(properties.unhealthyResourceCount), Healthy = toint(properties.healthyResourceCount)
+| project Control, Current, Max, Unhealthy, Healthy
+| order by Unhealthy desc
+
+// ---- azure/defender-plans-live  (ARG ; Defender plan coverage)
+securityresources
+| where type == "microsoft.security/pricings"
+| extend Plan = name, Tier = tostring(properties.pricingTier)
+| project subscriptionId, Plan, Tier
+| order by Plan asc
+
+// ---- azure/azure-findings-live  (ARG ; Azure findings)
+securityresources
+| where type == "microsoft.security/assessments"
+| extend Status = tostring(properties.status.code), Severity = tostring(properties.metadata.severity), DisplayName = tostring(properties.displayName)
+| where Status == "Unhealthy"
+| summarize Unhealthy = count() by DisplayName, Severity
+| top 50 by Unhealthy
+
+// ---- defender/top-cves-live  (Logs ; Top CVEs)
+// Requires Defender XDR tables in Sentinel; the same query works in Defender Advanced Hunting.
+DeviceTvmSoftwareVulnerabilities
+| summarize ExposedDevices = dcount(DeviceId), Software = make_set(strcat(SoftwareVendor, " ", SoftwareName), 3) by CveId, VulnerabilitySeverityLevel
+| join kind=leftouter (DeviceTvmSoftwareVulnerabilitiesKB | project CveId, CvssScore, IsExploitAvailable, PublishedDate) on CveId
+| project CveId, CvssScore, VulnerabilitySeverityLevel, IsExploitAvailable, ExposedDevices, Software = tostring(Software), PublishedDate
+| order by ExposedDevices desc
+| take 25
+
+// ---- defender/exposed-by-severity-live  (Logs ; Exposed devices by severity)
+// Requires Defender XDR tables in Sentinel; the same query works in Defender Advanced Hunting.
+DeviceTvmSoftwareVulnerabilities
+| summarize Devices = dcount(DeviceId) by VulnerabilitySeverityLevel
+
+// ---- defender/missing-updates-live  (Logs ; Devices missing security updates)
+// Requires Defender XDR tables in Sentinel; the same query works in Defender Advanced Hunting.
+DeviceTvmSoftwareVulnerabilities
+| where isnotempty(RecommendedSecurityUpdate)
+| summarize Devices = dcount(DeviceId), CVEs = dcount(CveId) by RecommendedSecurityUpdate
+| top 10 by Devices
+
+// ---- defender/active-alerts-live  (ARG ; Active alerts by severity)
+securityresources
+| where type == "microsoft.security/locations/alerts"
+| extend Severity = tostring(properties.severity), Status = tostring(properties.status), Product = tostring(properties.productName)
+| where Status == "Active"
+| summarize Alerts = count() by Severity, Product
+
+// ---- defender/defender-findings-live  (Logs ; Defender findings)
+// Requires Defender XDR tables in Sentinel; the same query works in Defender Advanced Hunting.
+DeviceTvmSecureConfigurationAssessment
+| where IsCompliant == 0
+| summarize Devices = dcount(DeviceId) by ConfigurationId
+| join kind=inner (DeviceTvmSecureConfigurationAssessmentKB | project ConfigurationId, ConfigurationName, ConfigurationCategory) on ConfigurationId
+| project ConfigurationName, ConfigurationCategory, Devices
+| top 15 by Devices
+
+// ---- ai/ai-inventory-live  (ARG ; AI resource inventory (live: Azure OpenAI and AI Services accounts))
+resources
+| where type == "microsoft.cognitiveservices/accounts" and kind in~ ("OpenAI", "AIServices")
+| extend PublicNetwork = tostring(properties.publicNetworkAccess), DefaultAction = tostring(properties.networkAcls.defaultAction), LocalAuthDisabled = tobool(properties.disableLocalAuth), PrivateEndpoints = array_length(properties.privateEndpointConnections)
+| summarize Accounts = count(), PublicNetworkAccess = countif(PublicNetwork =~ "Enabled" and DefaultAction !~ "Deny"), KeyAuthEnabled = countif(LocalAuthDisabled != true), NoPrivateEndpoint = countif(isnull(PrivateEndpoints) or PrivateEndpoints == 0)
+
+// ---- ai/ai-deployments-live  (ARG ; Model deployments and content filters (live: Prompt Shields state is not in Resource Graph))
+// Note: raiPolicyName may be absent in Resource Graph; Prompt Shields on/off per deployment is only visible in the Foundry portal (content filters), so that column stays sample-only.
+resources
+| where type == "microsoft.cognitiveservices/accounts/deployments"
+| extend Account = tostring(split(id, "/")[8]), Model = tostring(properties.model.name), Version = tostring(properties.model.version), ContentFilter = tostring(properties.raiPolicyName), Sku = tostring(sku.name)
+| project Account, Deployment = name, Model, Version, ContentFilter, Sku
+| order by Account asc, Deployment asc
+
+// ---- ai/ai-plan-live  (ARG ; Defender for AI services plan coverage)
+// Note: the Defender for AI services plan is named "AI" in newer tenants and "CognitiveServices" in older ones; verify with securityresources | where type == "microsoft.security/pricings".
+securityresources
+| where type == "microsoft.security/pricings" and name in~ ("AI", "CognitiveServices")
+| extend Plan = name, Tier = tostring(properties.pricingTier)
+| project Subscription = subscriptionId, Plan, Tier
+| order by Subscription asc
+
+// ---- ai/ai-alerts-live  (ARG ; Defender for AI services alerts (active))
+// Note: productComponentName value for Defender for AI services alerts should be verified; the alertDisplayName fallback catches the documented alert titles.
+securityresources
+| where type == "microsoft.security/locations/alerts"
+| extend Alert = tostring(properties.alertDisplayName), Severity = tostring(properties.severity), Status = tostring(properties.status), Component = tostring(properties.productComponentName)
+| where Status == "Active"
+| where Component =~ "AI" or Alert has_any ("Jailbreak", "prompt injection", "AI model deployment", "Azure AI", "Azure OpenAI")
+| summarize Alerts = count() by Alert, Severity
+| order by Alerts desc
+
+// ---- ai/ai-usage-live  (Logs ; Azure OpenAI requests and content-filter blocks)
+// Note: content-filter blocks surface as HTTP 400 with a content_filter error code; verify whether ResultSignature or properties_s carries it in your tenant. Requires the RequestResponse diagnostic category.
+AzureDiagnostics
+| where TimeGenerated {TimeRange}
+| where ResourceProvider == "MICROSOFT.COGNITIVESERVICES" and Category == "RequestResponse"
+| summarize Requests = count(), Blocked = countif(ResultSignature == "400") by Resource
+| order by Requests desc
+
+// ---- ai/ai-copilot-live  (Logs ; Copilot interactions (live: volume only; sensitivity is Purview-only))
+// Note: requires the Defender XDR connector in Sentinel (CloudAppEvents). Verify the Application value for Microsoft 365 Copilot; prompt sensitivity is only in Purview DSPM for AI.
+CloudAppEvents
+| where TimeGenerated {TimeRange}
+| where ActionType == "CopilotInteraction" or Application has "Copilot"
+| summarize Interactions = count(), Users = dcount(AccountObjectId) by Application
+| order by Interactions desc
+
+// ---- ai/ai-shadow-live  (Logs ; Generative AI apps discovered)
+// Note: requires the Defender for Cloud Apps connector in Sentinel. Verify the AppCategory label. Without Sentinel, use DeviceNetworkEvents filtered on known generative AI domains.
+McasShadowItReporting
+| where TimeGenerated {TimeRange}
+| where AppCategory =~ "Generative AI"
+| summarize Users = dcount(UserName), TrafficMB = round(sum(TotalBytes) / 1e6, 1) by AppName, RiskScore = AppScore, Sanctioned = tostring(AppTags)
+| order by Users desc
+
+// ---- ai/ai-copilot-studio-live  (Logs ; Power Platform admin activity (live: Copilot Studio inventory is admin-center only))
+// Note: PowerPlatformAdminActivity exists only when Power Platform admin activity export to Log Analytics is enabled; verify the table name in your workspace.
+PowerPlatformAdminActivity
+| where TimeGenerated {TimeRange}
+| summarize Events = count(), Users = dcount(UserId) by OperationName
+| order by Events desc
+
+// ---- ai/ai-agent-activity-live  (Logs ; Agent identity sign-in activity)
+// Note: requires the ServicePrincipalSignInLogs diagnostic category on the Entra tenant. Add AADManagedIdentitySignInLogs for managed-identity agents.
+AADServicePrincipalSignInLogs
+| where TimeGenerated {TimeRange}
+| summarize SignIns30d = count(), Failed = countif(ResultType != 0), LastSeen = max(TimeGenerated) by ServicePrincipalName, ServicePrincipalId
+| order by SignIns30d desc
+
+// ---- ai/ai-findings-live  (ARG ; AI & Agents findings (live: Defender for Cloud assessments on AI resources))
+// Note: live mode shows Defender for Cloud recommendations on AI resources only (needs Defender CSPM); Copilot Studio, Purview, Entra Agent ID and shadow-AI findings are not in Resource Graph.
+securityresources
+| where type == "microsoft.security/assessments"
+| extend ResourceId = tolower(tostring(properties.resourceDetails.Id))
+| where ResourceId has_any ("microsoft.cognitiveservices/", "microsoft.machinelearningservices/")
+| extend Status = tostring(properties.status.code), Severity = tostring(properties.metadata.severity), DisplayName = tostring(properties.displayName)
+| where Status == "Unhealthy"
+| summarize Unhealthy = count() by DisplayName, Severity
+| order by Unhealthy desc
+
+// ---- compliance/dfc-standards-live  (ARG ; Defender for Cloud regulatory compliance standards)
+securityresources
+| where type == "microsoft.security/regulatorycompliancestandards"
+| where name contains "CIS" or name contains "Azure-Security-Benchmark" or name contains "Microsoft-cloud-security-benchmark"
+| extend State = tostring(properties.state), Passed = toint(properties.passedControls), Failed = toint(properties.failedControls), Skipped = toint(properties.skippedControls), Unsupported = toint(properties.unsupportedControls)
+| project Standard = name, State, Passed, Failed, Skipped, Unsupported
+
+// ---- compliance/cis-controls-live  (ARG ; CIS controls detail)
+securityresources
+| where type == "microsoft.security/regulatorycompliancestandards/regulatorycompliancecontrols"
+| extend Standard = extract(@"regulatoryComplianceStandards/([^/]+)", 1, id)
+| where Standard contains "CIS"
+| extend State = tostring(properties.state), Description = tostring(properties.description), Passed = toint(properties.passedAssessments), Failed = toint(properties.failedAssessments), Skipped = toint(properties.skippedAssessments)
+| project Control = name, Description, State, Passed, Failed, Skipped
+| order by Control asc

@@ -1,0 +1,1799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Security Posture Dashboard - Entra ID, Azure, Defender, AI &amp; Agents</title>
+  <style>
+    :root {
+      /* Surfaces: a light mesh-gradient page with frosted glass panels on top */
+      --bg: #eef2f9;
+      --bg-mesh:
+        radial-gradient(900px 600px at 8% -10%, rgba(42, 120, 214, 0.22), transparent 60%),
+        radial-gradient(800px 560px at 100% 0%, rgba(124, 58, 237, 0.18), transparent 60%),
+        radial-gradient(700px 520px at 90% 90%, rgba(27, 175, 122, 0.16), transparent 60%),
+        radial-gradient(760px 520px at 0% 100%, rgba(235, 104, 52, 0.14), transparent 60%),
+        linear-gradient(180deg, #f4f7fc 0%, #eef2f9 100%);
+      --panel: rgba(255, 255, 255, 0.68);
+      --panel-strong: rgba(255, 255, 255, 0.86);
+      --panel-solid: #ffffff;
+      --glass-border: rgba(255, 255, 255, 0.75);
+      --glass-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 14px 40px -14px rgba(30, 41, 59, 0.20);
+      --glass-shadow-hover: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 22px 48px -16px rgba(30, 41, 59, 0.28);
+      --radius: 1.1rem;
+      --radius-sm: 0.7rem;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --grid: #e1e0d9;
+      --border: rgba(31, 41, 55, 0.10);
+      --accent: #2563eb;
+      --accent-2: #7c3aed;
+      --accent-soft: rgba(37, 99, 235, 0.10);
+      --accent-gradient: linear-gradient(120deg, #2563eb 0%, #7c3aed 100%);
+      --hover: rgba(37, 99, 235, 0.06);
+      /* Domain colors: categorical, fixed order [blue, orange, aqua, violet], never reassigned on filter.
+         Violet is palette slot 7; slot 4 yellow was rejected because it sits next to --warn on every card. */
+      --entra: #2a78d6;
+      --azure: #eb6834;
+      --defender: #1baf7a;
+      --ai: #4a3aa7;
+      /* Severity / status colors: reserved, always paired with text */
+      --sev-critical: #d03b3b;
+      --sev-high: #ec835a;
+      --sev-medium: #fab219;
+      --sev-low: #898781;
+      --pass: #0ca30c;
+      --warn: #fab219;
+      --fail: #d03b3b;
+      --pass-text: #006300;
+      --seq-1: #cde2fb;
+      --seq-2: #86b6ef;
+      --seq-3: #3987e5;
+      --seq-4: #1c5cab;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { background: var(--bg); }
+    body {
+      margin: 0;
+      padding: 1.25rem;
+      min-height: 100vh;
+      background: var(--bg-mesh);
+      background-attachment: fixed;
+      color: var(--text);
+      font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+      font-size: 15px;
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+    }
+    /* faint dot grid over the mesh for texture */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      background-image: radial-gradient(rgba(31, 41, 55, 0.07) 1px, transparent 1px);
+      background-size: 22px 22px;
+      mask-image: linear-gradient(180deg, rgba(0,0,0,0.9), rgba(0,0,0,0.35));
+      -webkit-mask-image: linear-gradient(180deg, rgba(0,0,0,0.9), rgba(0,0,0,0.35));
+    }
+
+    button { font: inherit; color: inherit; cursor: pointer; }
+    select, input { font: inherit; color: inherit; }
+    h1, h2, h3, h4 { margin: 0; font-weight: 600; }
+    /* Shared frosted glass surface */
+    .glass, .topbar, .filters, .card, .drawer {
+      background: var(--panel);
+      -webkit-backdrop-filter: blur(18px) saturate(1.5);
+      backdrop-filter: blur(18px) saturate(1.5);
+      border: 1px solid var(--glass-border);
+      box-shadow: var(--glass-shadow);
+    }
+    .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+    /* ---------- Header ---------- */
+    .topbar {
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 1rem 1.5rem;
+      border-radius: var(--radius);
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1rem;
+    }
+    .topbar::before {
+      content: "";
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 6px;
+      background: var(--accent-gradient);
+    }
+    .topbar h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      background: linear-gradient(120deg, #111827 0%, #2563eb 55%, #7c3aed 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      display: inline-block;
+    }
+    .topbar .meta { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; color: var(--muted); font-size: 0.85rem; margin-top: 0.3rem; }
+    .badge {
+      display: inline-block;
+      padding: 0.18rem 0.6rem;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      border: 1px solid rgba(37, 99, 235, 0.18);
+      color: var(--text);
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+    .hero {
+      margin-left: auto;
+      text-align: right;
+      padding: 0.75rem 1.1rem;
+      border-radius: var(--radius-sm);
+      background: var(--panel-strong);
+      border: 1px solid var(--glass-border);
+      box-shadow: 0 10px 30px -14px rgba(37, 99, 235, 0.35);
+    }
+    .hero .label { color: var(--muted); font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; }
+    .hero .num {
+      font-size: 3.4rem;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -0.03em;
+      background: var(--accent-gradient);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      display: inline-block;
+    }
+    .hero .num small {
+      font-size: 1.1rem;
+      font-weight: 500;
+      background: none;
+      -webkit-text-fill-color: var(--muted);
+      color: var(--muted);
+    }
+
+    /* ---------- Tabs: floating pill segmented control ---------- */
+    .tabs {
+      display: inline-flex;
+      gap: 0.2rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+      padding: 0.3rem;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.55);
+      border: 1px solid var(--glass-border);
+      -webkit-backdrop-filter: blur(14px);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 8px 24px -14px rgba(30, 41, 59, 0.25);
+    }
+    .tabs button {
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      font-weight: 600;
+      transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+    }
+    .tabs button:hover { color: var(--text); background: rgba(255, 255, 255, 0.7); }
+    .tabs button[aria-selected="true"] {
+      color: #fff;
+      background: var(--accent-gradient);
+      box-shadow: 0 8px 18px -8px rgba(37, 99, 235, 0.6);
+    }
+    .tabs button:focus-visible, .chip:focus-visible, .row-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    /* ---------- Filters ---------- */
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 0.75rem;
+      align-items: center;
+      border-radius: var(--radius);
+      padding: 0.8rem 1.1rem;
+      margin-bottom: 1rem;
+    }
+    .filters label { display: flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; color: var(--muted); }
+    .filters select, .filters input {
+      padding: 0.4rem 0.6rem;
+      border: 1px solid rgba(31, 41, 55, 0.12);
+      border-radius: var(--radius-sm);
+      background: rgba(255, 255, 255, 0.85);
+      color: var(--text);
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .filters select:focus-visible, .filters input:focus-visible {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+    .filters input[type="search"] { min-width: 12rem; }
+    .chips { display: flex; gap: 0.3rem; }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.32rem 0.65rem;
+      border: 1px solid rgba(31, 41, 55, 0.12);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.85);
+      font-size: 0.8rem;
+      color: var(--muted);
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .chip:hover { border-color: var(--accent); }
+    .chip[aria-pressed="true"] { border-color: transparent; color: var(--text); background: var(--accent-soft); box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.25) inset; }
+    .chip .dot { width: 8px; height: 8px; }
+    .filters .count { margin-left: auto; font-size: 0.85rem; color: var(--muted); }
+    .btn-ghost { padding: 0.4rem 0.8rem; border: 1px solid rgba(31, 41, 55, 0.12); border-radius: var(--radius-sm); background: rgba(255, 255, 255, 0.85); font-size: 0.85rem; transition: background 0.15s, border-color 0.15s; }
+    .btn-ghost:hover { background: var(--accent-soft); border-color: var(--accent); }
+
+    /* ---------- Layout ---------- */
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+    .grid.kpis { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+    .card {
+      position: relative;
+      border-radius: var(--radius);
+      padding: 1.1rem 1.2rem;
+      min-width: 0;
+      transition: box-shadow 0.2s, transform 0.2s;
+    }
+    .card.span-2 { grid-column: span 2; }
+    @media (max-width: 700px) { .card.span-2 { grid-column: span 1; } }
+    .card h3 { font-size: 0.95rem; margin-bottom: 0.6rem; letter-spacing: -0.005em; }
+    .card h3 .sub { display: block; font-size: 0.78rem; color: var(--muted); font-weight: 400; margin-top: 0.1rem; }
+    .card.clickable { cursor: pointer; }
+    .card.clickable:hover { box-shadow: var(--glass-shadow-hover); transform: translateY(-2px); }
+    .card.clickable:focus-visible { outline: none; box-shadow: var(--glass-shadow), 0 0 0 2px var(--accent); }
+    /* Domain cards: gradient accent bar tucked under the rounded top edge */
+    .card.domain-entra, .card.domain-azure, .card.domain-defender, .card.domain-ai { overflow: hidden; }
+    .card.domain-entra::before, .card.domain-azure::before, .card.domain-defender::before, .card.domain-ai::before {
+      content: "";
+      position: absolute;
+      left: 0; right: 0; top: 0;
+      height: 5px;
+      background: var(--domain-color, var(--accent));
+      opacity: 0.9;
+    }
+    .card.domain-entra { --domain-color: var(--entra); }
+    .card.domain-azure { --domain-color: var(--azure); }
+    .card.domain-defender { --domain-color: var(--defender); }
+    .card.domain-ai { --domain-color: var(--ai); }
+    .note { font-size: 0.8rem; color: var(--muted); margin: 0.5rem 0 0; }
+
+    /* ---------- KPI tiles ---------- */
+    .kpi .label { font-size: 0.78rem; color: var(--muted); letter-spacing: 0.01em; }
+    .kpi .value { font-size: 1.9rem; font-weight: 800; line-height: 1.15; letter-spacing: -0.02em; }
+    .kpi .value small { font-size: 0.95rem; font-weight: 500; color: var(--muted); }
+    .kpi .delta { font-size: 0.8rem; color: var(--muted); margin-top: 0.15rem; }
+    .kpi .delta.bad { color: var(--fail); }
+    .kpi .delta.good { color: var(--pass-text); }
+
+    .counts { display: flex; gap: 1rem; margin: 0.4rem 0 0.6rem; }
+    .counts div { display: flex; flex-direction: column; }
+    .counts span:first-child { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    .counts span:last-child { font-size: 1.3rem; font-weight: 700; }
+
+    /* ---------- Marks ---------- */
+    .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; margin-right: 0.35rem; flex: none; }
+    .dot.critical { background: var(--sev-critical); }
+    .dot.high { background: var(--sev-high); }
+    .dot.medium { background: var(--sev-medium); }
+    .dot.low { background: var(--sev-low); }
+    .dot.fail { background: var(--fail); }
+    .dot.warn { background: var(--warn); }
+    .dot.pass { background: var(--pass); }
+    .dot.entra { background: var(--entra); }
+    .dot.azure { background: var(--azure); }
+    .dot.defender { background: var(--defender); }
+    .dot.ai { background: var(--ai); }
+    .sw { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: middle; margin-right: 0.35rem; }
+
+    .stack { display: flex; gap: 2px; height: 8px; border-radius: 4px; overflow: hidden; background: var(--grid); }
+    .stack div { height: 100%; min-width: 0; }
+    .stack div.critical { background: var(--sev-critical); }
+    .stack div.high { background: var(--sev-high); }
+    .stack div.medium { background: var(--sev-medium); }
+    .stack div.low { background: var(--sev-low); }
+    .legend { display: flex; flex-wrap: wrap; gap: 0.35rem 0.9rem; font-size: 0.78rem; color: var(--muted); margin: 0.4rem 0; }
+
+    /* OWASP coverage strip: one cell per risk category, state as colored top edge plus word */
+    .cov { display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 4px; margin-bottom: 0.75rem; }
+    .cov-cell { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 0.35rem 0.2rem; border: 1px solid rgba(31, 41, 55, 0.10); border-top-width: 4px; border-radius: 0.55rem; background: rgba(255, 255, 255, 0.85); font-size: 0.74rem; line-height: 1.2; color: var(--text); transition: background 0.15s, transform 0.15s; }
+    .cov-cell:not(.na):hover { transform: translateY(-1px); }
+    .cov-cell strong { font-variant-numeric: tabular-nums; }
+    .cov-cell small { color: var(--muted); font-size: 0.68rem; }
+    .cov-cell.fail { border-top-color: var(--fail); }
+    .cov-cell.warn { border-top-color: var(--warn); }
+    .cov-cell.pass { border-top-color: var(--pass); }
+    .cov-cell.na { background: rgba(31, 41, 55, 0.04); border-top-color: var(--grid); color: var(--muted); cursor: default; }
+    .cov-cell:not(.na):hover { background: var(--accent-soft); }
+    .cov-cell:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    .meter { height: 8px; background: rgba(31, 41, 55, 0.08); border-radius: 4px; overflow: hidden; }
+    .meter div { height: 100%; background: var(--accent-gradient); border-radius: 4px; transition: width 0.3s ease; }
+    .meter div.good { background: var(--pass); }
+    .meter div.warnfill { background: var(--warn); }
+    .meter div.bad { background: var(--fail); }
+    .meter-row { display: grid; grid-template-columns: 1fr auto; gap: 0.25rem 0.75rem; align-items: center; font-size: 0.85rem; margin-bottom: 0.45rem; }
+    .meter-row .meter { grid-column: 1 / -1; }
+    .meter-row .val { font-variant-numeric: tabular-nums; color: var(--muted); }
+
+    svg.chart { width: 100%; height: auto; display: block; overflow: visible; }
+    svg.chart text { font-family: inherit; font-size: 11px; fill: var(--text); }
+    svg.chart text.muted { fill: var(--muted); }
+    svg.chart rect.mark { transition: opacity 0.1s; }
+    svg.chart rect.mark:hover, svg.chart rect.mark:focus { opacity: 0.8; outline: none; }
+    .arc-wrap { display: flex; align-items: center; gap: 1rem; }
+    .arc-wrap svg { width: 110px; height: 110px; flex: none; }
+    .arc-wrap .arc-text { font-size: 0.85rem; color: var(--muted); }
+    .arc-wrap .arc-text strong { display: block; font-size: 1.4rem; color: var(--text); }
+
+    details.tbl-details { margin-top: 0.5rem; font-size: 0.8rem; }
+    details.tbl-details summary { color: var(--muted); cursor: pointer; }
+    details.tbl-details table { margin-top: 0.4rem; }
+
+    /* ---------- Tables ---------- */
+    .tbl-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    caption { text-align: left; font-size: 0.8rem; color: var(--muted); padding-bottom: 0.4rem; }
+    th, td { text-align: left; padding: 0.5rem 0.55rem; border-bottom: 1px solid rgba(31, 41, 55, 0.08); vertical-align: top; }
+    th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); white-space: nowrap; }
+    th button { background: none; border: none; padding: 0; color: inherit; font: inherit; text-transform: inherit; letter-spacing: inherit; }
+    th button::after { content: " \2195"; opacity: 0.4; }
+    th[aria-sort="ascending"] button::after { content: " \2191"; opacity: 1; }
+    th[aria-sort="descending"] button::after { content: " \2193"; opacity: 1; }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    th.num { text-align: right; }
+    tbody tr.row-btn { cursor: pointer; transition: background 0.12s; }
+    tbody tr.row-btn:hover { background: var(--hover); }
+    tbody tr.row-btn:focus-visible { outline-offset: -2px; }
+    td .status { white-space: nowrap; }
+    td.title-cell { min-width: 16rem; }
+    td.id-cell { white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .id-chip {
+      display: inline-block;
+      margin: 0 0.2rem 0.2rem 0;
+      padding: 0.08rem 0.5rem;
+      border: 1px solid rgba(31, 41, 55, 0.12);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.85);
+      font-size: 0.75rem;
+      font-variant-numeric: tabular-nums;
+      transition: background 0.12s, border-color 0.12s;
+    }
+    button.id-chip:hover { border-color: var(--accent); background: var(--accent-soft); }
+    .empty { color: var(--muted); text-align: center; padding: 1.25rem !important; }
+    .toplist { list-style: none; margin: 0; padding: 0; }
+    .toplist li { display: flex; gap: 0.5rem; align-items: baseline; padding: 0.35rem 0; border-bottom: 1px solid var(--grid); font-size: 0.85rem; }
+    .toplist li:last-child { border-bottom: none; }
+    .toplist .who { color: var(--muted); font-size: 0.75rem; margin-left: auto; white-space: nowrap; }
+    .toplist button { background: none; border: none; padding: 0; text-align: left; text-decoration: underline dotted; }
+
+    .seg { display: inline-flex; gap: 0.15rem; padding: 0.2rem; border: 1px solid rgba(31, 41, 55, 0.10); border-radius: 999px; background: rgba(255, 255, 255, 0.7); margin-bottom: 0.75rem; }
+    .seg button { padding: 0.3rem 0.8rem; border: none; border-radius: 999px; background: transparent; font-size: 0.85rem; color: var(--muted); transition: background 0.15s, color 0.15s; }
+    .seg button[aria-pressed="true"] { background: var(--panel-solid); color: var(--text); font-weight: 600; box-shadow: 0 2px 8px -2px rgba(30, 41, 59, 0.25); }
+
+    /* ---------- Drawer ---------- */
+    .backdrop { position: fixed; inset: 0; background: rgba(17, 24, 39, 0.35); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+    .drawer {
+      position: fixed;
+      top: 0.75rem; right: 0.75rem; bottom: 0.75rem;
+      width: min(520px, calc(100vw - 1.5rem));
+      background: var(--panel-strong);
+      border-radius: var(--radius);
+      box-shadow: 0 30px 80px -20px rgba(17, 24, 39, 0.45);
+      padding: 1.4rem 1.6rem;
+      overflow-y: auto;
+    }
+    .drawer[hidden], .backdrop[hidden] { display: none; }
+    .drawer header { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; margin-bottom: 0.75rem; }
+    .drawer h2 { font-size: 1.1rem; letter-spacing: -0.01em; }
+    .drawer .close { border: 1px solid rgba(31, 41, 55, 0.12); background: rgba(255, 255, 255, 0.85); border-radius: 999px; padding: 0.3rem 0.8rem; }
+    .drawer .close:hover { background: var(--accent-soft); border-color: var(--accent); }
+    .drawer .badges { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.9rem; }
+    .drawer .badge { background: rgba(255, 255, 255, 0.85); border-color: rgba(31, 41, 55, 0.12); }
+    .drawer h4 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0.9rem 0 0.3rem; }
+    .drawer p, .drawer li { font-size: 0.9rem; margin: 0.2rem 0; }
+    .drawer ol { padding-left: 1.2rem; margin: 0.2rem 0; }
+    .drawer dl { margin: 0; font-size: 0.85rem; }
+    .drawer dt { font-weight: 600; margin-top: 0.4rem; }
+    .drawer dd { margin: 0 0 0 0; color: var(--muted); }
+
+    /* ---------- Tooltip ---------- */
+    .tooltip {
+      position: fixed;
+      z-index: 50;
+      pointer-events: none;
+      background: rgba(17, 24, 39, 0.88);
+      -webkit-backdrop-filter: blur(8px);
+      backdrop-filter: blur(8px);
+      color: #fff;
+      padding: 0.4rem 0.65rem;
+      border-radius: 0.6rem;
+      font-size: 0.78rem;
+      max-width: 260px;
+      box-shadow: 0 10px 30px -8px rgba(0,0,0,0.35);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    .tooltip strong { font-size: 0.9rem; }
+    .tooltip[hidden] { display: none; }
+
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Security Posture Dashboard</h1>
+      <div class="meta">
+        <span class="badge">Sample data - Contoso</span>
+        <span>Entra ID, Azure resources, Microsoft Defender and AI &amp; Agents mapped to MCSB, CIS Azure v3.0, CIS M365 v4 and the OWASP AI Top 10 lists</span>
+        <span id="assessed"></span>
+      </div>
+    </div>
+    <div class="hero">
+      <div class="label">Overall posture</div>
+      <div class="num"><span id="posture">0</span><small>/100</small></div>
+      <div class="label" style="text-transform:none;letter-spacing:0" id="posture-sub"></div>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Dashboard sections" id="tabs"></nav>
+
+  <section class="filters" role="search" aria-label="Filters">
+    <label>Domain
+      <select id="f-domain">
+        <option value="all">All</option>
+        <option value="entra">Entra ID</option>
+        <option value="azure">Azure resources</option>
+        <option value="defender">Defender</option>
+        <option value="ai">AI &amp; Agents</option>
+      </select>
+    </label>
+    <div class="chips" id="f-severity" role="group" aria-label="Severity"></div>
+    <label>Status
+      <select id="f-status">
+        <option value="all">All</option>
+        <option value="open">Open (fail + warn)</option>
+        <option value="fail">Fail</option>
+        <option value="warn">Warn</option>
+        <option value="pass">Pass</option>
+      </select>
+    </label>
+    <label>Framework
+      <select id="f-framework">
+        <option value="all">Any</option>
+        <option value="mcsb">MCSB</option>
+        <option value="cisAzure">CIS Azure v3.0</option>
+        <option value="cisM365">CIS M365 v4</option>
+        <option value="owaspLlm">OWASP LLM Top 10 (2025)</option>
+        <option value="owaspAgentic">OWASP Agentic Top 10 (2025)</option>
+      </select>
+    </label>
+    <label>Control
+      <input id="f-control" type="text" placeholder="e.g. IM-6, 2.2 or LLM01" size="12" />
+    </label>
+    <label>Search
+      <input id="f-search" type="search" placeholder="Title, description, source…" />
+    </label>
+    <button class="btn-ghost" id="f-reset" type="button">Reset</button>
+    <span class="count" id="result-count" aria-live="polite"></span>
+  </section>
+
+  <main id="panels"></main>
+
+  <div class="backdrop" id="backdrop" hidden></div>
+  <aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" hidden tabindex="-1"></aside>
+  <div class="tooltip" id="tooltip" role="status" hidden></div>
+
+  <script>
+    'use strict';
+
+    /* =========================================================
+       DATA - sample only. Everything below derives from these.
+       Keep workbook.json sample tiles in sync when editing.
+       ========================================================= */
+    const ASSESSED = '2026-09-14';
+    const TENANT = 'Tenant: contoso.onmicrosoft.com';
+    const AI_SCOPE = 'Subscriptions: prod-core, dev-sandbox, shared-services, data-platform, identity';
+
+    const FINDINGS = [
+      // ---------------- Entra ID ----------------
+      { id: 'E-01', domain: 'entra', category: 'MFA', title: 'MFA not enforced for all users', severity: 'critical', status: 'fail',
+        affected: 568, affectedUnit: 'users', scope: TENANT, source: 'Entra ID', detected: '2026-09-14',
+        description: '568 of 2,410 enabled users are not MFA-capable and no Conditional Access policy requires MFA for all users. Passwords alone protect these accounts.',
+        remediation: 'Create a Conditional Access policy requiring MFA for all users and all cloud apps (exclude break-glass accounts). Run a registration campaign for Microsoft Authenticator before enforcing.',
+        mcsb: ['IM-6'], cisAzure: ['2.2.5', '2.1.3'], cisM365: ['5.2.2.2', '5.2.3.4'] },
+      { id: 'E-02', domain: 'entra', category: 'MFA', title: 'Administrators not required to use phishing-resistant MFA', severity: 'high', status: 'fail',
+        affected: 7, affectedUnit: 'users', scope: TENANT, source: 'Entra ID', detected: '2026-09-14',
+        description: '7 of 23 privileged-role holders authenticate with SMS or voice call. No authentication strength policy applies to admin roles.',
+        remediation: 'Create a Conditional Access policy targeting directory roles with the built-in "Phishing-resistant MFA" authentication strength (FIDO2, Windows Hello for Business, certificate-based auth).',
+        mcsb: ['IM-6', 'PA-1'], cisAzure: ['2.2.4'], cisM365: ['5.2.2.1', '5.2.2.5'] },
+      { id: 'E-03', domain: 'entra', category: 'Legacy Auth', title: 'Legacy authentication not blocked', severity: 'high', status: 'fail',
+        affected: 41, affectedUnit: 'users', scope: TENANT, source: 'Sign-in logs', detected: '2026-09-14',
+        description: '312 successful legacy sign-ins (SMTP AUTH, IMAP4, Exchange ActiveSync) from 41 users in the last 30 days. Legacy protocols cannot satisfy MFA.',
+        remediation: 'Review the "Sign-ins using legacy authentication" workbook, migrate the 41 users/apps to modern auth, then enable a Conditional Access policy blocking legacy client apps.',
+        mcsb: ['IM-6'], cisAzure: [], cisM365: ['5.2.2.3', '6.5.4'] },
+      { id: 'E-04', domain: 'entra', category: 'Privileged Roles', title: 'Too many Global Administrators', severity: 'high', status: 'fail',
+        affected: 9, affectedUnit: 'users', scope: TENANT, source: 'Entra ID', detected: '2026-09-14',
+        description: '9 accounts hold Global Administrator. Microsoft recommends 2 to 4, with least-privileged roles for day-to-day tasks.',
+        remediation: 'Move 5 or more admins to scoped roles (User Administrator, Exchange Administrator, Security Administrator). Keep Global Administrator as eligible-only in PIM.',
+        mcsb: ['PA-1'], cisAzure: ['2.26'], cisM365: ['1.1.3'] },
+      { id: 'E-05', domain: 'entra', category: 'PIM', title: 'Permanent active assignments to privileged roles', severity: 'high', status: 'fail',
+        affected: 14, affectedUnit: 'users', scope: TENANT, source: 'Entra ID', detected: '2026-09-14',
+        description: '14 users hold standing (permanent active) assignments to Global Administrator, Privileged Role Administrator or Security Administrator outside Privileged Identity Management.',
+        remediation: 'Convert permanent assignments to eligible in PIM with a maximum activation of 8 hours, MFA on activation and justification required.',
+        mcsb: ['PA-2'], cisAzure: [], cisM365: ['5.3.1'] },
+      { id: 'E-06', domain: 'entra', category: 'PIM', title: 'No approval required to activate Global Administrator', severity: 'medium', status: 'fail',
+        affected: 1, affectedUnit: 'policies', scope: TENANT, source: 'Entra ID', detected: '2026-09-13',
+        description: 'The PIM role setting for Global Administrator allows self-activation without approver review.',
+        remediation: 'Edit the Global Administrator role settings in PIM: require approval, name at least two approvers, and enable activation alerts.',
+        mcsb: ['PA-2'], cisAzure: [], cisM365: ['5.3.4'] },
+      { id: 'E-07', domain: 'entra', category: 'Conditional Access', title: 'Emergency access accounts not defined or not excluded from Conditional Access', severity: 'medium', status: 'warn',
+        affected: 0, affectedUnit: 'users', scope: TENANT, source: 'Entra ID', detected: '2026-09-13',
+        description: 'No accounts are tagged as break-glass, and no Conditional Access policy excludes such accounts. A misconfigured policy could lock out all administrators.',
+        remediation: 'Create two cloud-only emergency access accounts with FIDO2 keys stored offline, exclude them from every Conditional Access policy and alert on any sign-in.',
+        mcsb: ['PA-5'], cisAzure: [], cisM365: ['1.1.2'] },
+      { id: 'E-08', domain: 'entra', category: 'App Consent', title: 'Users can consent to apps accessing company data', severity: 'medium', status: 'fail',
+        affected: 1, affectedUnit: 'policies', scope: TENANT, source: 'Entra ID', detected: '2026-09-13',
+        description: 'User consent is set to "Allow user consent for apps". 37 third-party apps have user-granted delegated permissions including Mail.Read.',
+        remediation: 'Set user consent to "Do not allow" or "Allow for verified publishers, selected permissions", enable the admin consent workflow and review existing grants.',
+        mcsb: ['IM-3'], cisAzure: ['2.12'], cisM365: ['5.1.5.1', '5.1.5.2'] },
+      { id: 'E-09', domain: 'entra', category: 'Guest Access', title: 'Guest invite restrictions allow any member or guest to invite', severity: 'medium', status: 'fail',
+        affected: 1, affectedUnit: 'policies', scope: TENANT, source: 'Entra ID', detected: '2026-09-13',
+        description: 'External collaboration settings allow anyone in the organization, including guests, to invite external users.',
+        remediation: 'Restrict invitations to users assigned the Guest Inviter role and enable cross-tenant access settings for approved partner tenants only.',
+        mcsb: ['PA-3'], cisAzure: ['2.16'], cisM365: ['5.1.6.3'] },
+      { id: 'E-10', domain: 'entra', category: 'Guest Access', title: 'Inactive guest accounts with no access reviews', severity: 'medium', status: 'fail',
+        affected: 61, affectedUnit: 'users', scope: TENANT, source: 'Entra ID', detected: '2026-09-14',
+        description: '61 of 187 guest accounts have not signed in for more than 90 days. No access review is configured for guests.',
+        remediation: 'Create a recurring quarterly access review for all guest users with auto-removal on denial or no response.',
+        mcsb: ['PA-4'], cisAzure: ['2.4'], cisM365: ['5.3.2'] },
+      { id: 'E-11', domain: 'entra', category: 'Identity Protection', title: 'Risk-based Conditional Access policies not enforced', severity: 'high', status: 'fail',
+        affected: 2, affectedUnit: 'policies', scope: TENANT, source: 'Identity Protection', detected: '2026-09-14',
+        description: 'Sign-in risk and user risk policies are in report-only mode. 23 users are currently flagged at medium or high risk.',
+        remediation: 'Enable Conditional Access policies: require MFA for medium+ sign-in risk and require secure password change for high user risk. Remediate the 23 flagged users.',
+        mcsb: ['IM-7'], cisAzure: ['2.2.6'], cisM365: ['5.2.2.6', '5.2.2.7'] },
+      { id: 'E-12', domain: 'entra', category: 'Conditional Access', title: 'No MFA requirement for Windows Azure Service Management API', severity: 'high', status: 'fail',
+        affected: 1, affectedUnit: 'policies', scope: TENANT, source: 'Entra ID', detected: '2026-09-13',
+        description: 'Azure portal, CLI and PowerShell access is not covered by a Conditional Access policy requiring MFA.',
+        remediation: 'Create a Conditional Access policy targeting the "Windows Azure Service Management API" cloud app that requires MFA for all users.',
+        mcsb: ['IM-6'], cisAzure: ['2.2.7'], cisM365: [] },
+      { id: 'E-13', domain: 'entra', category: 'Tenant Settings', title: 'Non-admin users restricted from creating tenants', severity: 'low', status: 'pass',
+        affected: 0, affectedUnit: 'policies', scope: TENANT, source: 'Entra ID', detected: '2026-09-13',
+        description: '"Restrict non-admin users from creating tenants" is set to Yes.',
+        remediation: 'No action required. Re-verify after tenant setting changes.',
+        mcsb: ['PA-7'], cisAzure: ['2.3'], cisM365: ['5.1.2.3'] },
+      { id: 'E-14', domain: 'entra', category: 'Tenant Settings', title: 'Security Defaults disabled because Conditional Access is in use', severity: 'low', status: 'pass',
+        affected: 0, affectedUnit: 'policies', scope: TENANT, source: 'Entra ID', detected: '2026-09-13',
+        description: 'Security Defaults are off, which is expected when Conditional Access policies provide equivalent or stronger controls.',
+        remediation: 'No action required, provided the MFA and legacy-auth gaps above are closed.',
+        mcsb: ['IM-6'], cisAzure: ['2.1.1'], cisM365: ['5.1.1.1'] },
+      { id: 'E-15', domain: 'entra', category: 'Tenant Settings', title: 'Password hash synchronization enabled', severity: 'low', status: 'pass',
+        affected: 0, affectedUnit: 'users', scope: TENANT, source: 'Entra ID', detected: '2026-09-13',
+        description: 'Entra Connect synchronizes password hashes, enabling leaked-credential detection and cloud authentication if on-premises AD is unavailable.',
+        remediation: 'No action required.',
+        mcsb: ['IM-1'], cisAzure: [], cisM365: ['5.1.8.1'] },
+      { id: 'E-16', domain: 'entra', category: 'Conditional Access', title: 'Sign-in frequency and persistent browser session controlled for admins', severity: 'low', status: 'pass',
+        affected: 0, affectedUnit: 'policies', scope: TENANT, source: 'Entra ID', detected: '2026-09-13',
+        description: 'A Conditional Access policy limits admin sign-in frequency to 4 hours and disables persistent browser sessions.',
+        remediation: 'No action required.',
+        mcsb: ['IM-7'], cisAzure: [], cisM365: ['5.2.2.9'] },
+
+      // ---------------- Azure resources ----------------
+      { id: 'A-01', domain: 'azure', category: 'Storage', title: 'Secure transfer (HTTPS) not required on storage accounts', severity: 'high', status: 'fail',
+        affected: 4, affectedUnit: 'resources', scope: 'Subscriptions: prod-core, dev-sandbox', source: 'Defender for Cloud', detected: '2026-09-14',
+        description: '4 of 37 storage accounts accept HTTP requests, allowing data in transit to be intercepted.',
+        remediation: 'Set "Secure transfer required" to Enabled on each account, or assign the Azure Policy "Secure transfer to storage accounts should be enabled" with a Modify effect.',
+        mcsb: ['DP-3'], cisAzure: ['4.1'], cisM365: [] },
+      { id: 'A-02', domain: 'azure', category: 'Storage', title: 'Anonymous blob access allowed on storage accounts', severity: 'critical', status: 'fail',
+        affected: 2, affectedUnit: 'resources', scope: 'Subscription: prod-core', source: 'Defender for Cloud', detected: '2026-09-14',
+        description: 'Two accounts permit anonymous public read on containers, one of which holds exported reports.',
+        remediation: 'Set "Allow Blob anonymous access" to Disabled at the account level and switch container access level to Private. Use SAS tokens or Entra RBAC for sharing.',
+        mcsb: ['NS-2'], cisAzure: ['4.17'], cisM365: [] },
+      { id: 'A-03', domain: 'azure', category: 'Storage', title: 'Storage account default network rule is Allow', severity: 'medium', status: 'fail',
+        affected: 11, affectedUnit: 'resources', scope: 'All subscriptions', source: 'Defender for Cloud', detected: '2026-09-14',
+        description: '11 storage accounts have no firewall configured; they accept traffic from any network.',
+        remediation: 'Set the default action to Deny, add the required virtual networks or IP ranges, and prefer private endpoints for application access.',
+        mcsb: ['NS-2'], cisAzure: ['4.7'], cisM365: [] },
+      { id: 'A-04', domain: 'azure', category: 'Network', title: 'NSG allows RDP (3389) from the Internet', severity: 'critical', status: 'fail',
+        affected: 6, affectedUnit: 'resources', scope: 'Subscriptions: prod-core, dev-sandbox', source: 'Defender for Cloud', detected: '2026-09-14',
+        description: '6 network security groups contain inbound rules allowing TCP 3389 from Any or Internet.',
+        remediation: 'Remove the rules and use Azure Bastion or just-in-time VM access. Assign the Azure Policy denying RDP from the Internet.',
+        mcsb: ['NS-1', 'NS-3'], cisAzure: ['7.1'], cisM365: [] },
+      { id: 'A-05', domain: 'azure', category: 'Network', title: 'NSG allows SSH (22) from the Internet', severity: 'high', status: 'fail',
+        affected: 4, affectedUnit: 'resources', scope: 'Subscription: dev-sandbox', source: 'Defender for Cloud', detected: '2026-09-14',
+        description: '4 network security groups allow TCP 22 inbound from Any.',
+        remediation: 'Restrict source to management ranges or use Azure Bastion / just-in-time access.',
+        mcsb: ['NS-1'], cisAzure: ['7.2'], cisM365: [] },
+      { id: 'A-06', domain: 'azure', category: 'Key Vault', title: 'Purge protection not enabled on key vaults', severity: 'high', status: 'fail',
+        affected: 3, affectedUnit: 'resources', scope: 'Subscription: prod-core', source: 'Defender for Cloud', detected: '2026-09-14',
+        description: '3 of 8 key vaults can be permanently deleted during the soft-delete retention window, defeating recovery from malicious deletion.',
+        remediation: 'Enable purge protection on each vault (irreversible) and assign the Azure Policy "Key vaults should have deletion protection enabled".',
+        mcsb: ['DP-8'], cisAzure: ['9.5'], cisM365: [] },
+      { id: 'A-07', domain: 'azure', category: 'Key Vault', title: 'Secrets and keys without expiration dates', severity: 'medium', status: 'fail',
+        affected: 49, affectedUnit: 'resources', scope: 'All subscriptions', source: 'Defender for Cloud', detected: '2026-09-14',
+        description: '42 secrets and 7 keys have no expiration set, so compromised credentials remain valid indefinitely.',
+        remediation: 'Set expiration dates (max 12 months), enable Event Grid near-expiry notifications and rotate on a schedule.',
+        mcsb: ['DP-6'], cisAzure: ['9.1', '9.3'], cisM365: [] },
+      { id: 'A-08', domain: 'azure', category: 'SQL', title: 'Auditing disabled on SQL servers', severity: 'high', status: 'fail',
+        affected: 3, affectedUnit: 'resources', scope: 'Subscription: prod-core', source: 'Defender for Cloud', detected: '2026-09-14',
+        description: '3 of 9 Azure SQL logical servers have server-level auditing off, so database events are not retained.',
+        remediation: 'Enable auditing to a Log Analytics workspace or storage account with at least 90 days retention.',
+        mcsb: ['LT-3'], cisAzure: ['5.1.1'], cisM365: [] },
+      { id: 'A-09', domain: 'azure', category: 'SQL', title: 'SQL server firewall allows all Azure services or 0.0.0.0 range', severity: 'critical', status: 'fail',
+        affected: 2, affectedUnit: 'resources', scope: 'Subscription: prod-core', source: 'Defender for Cloud', detected: '2026-09-14',
+        description: '2 SQL servers have a firewall rule with start IP 0.0.0.0 and end IP 255.255.255.255 and public network access enabled.',
+        remediation: 'Delete the broad rule, disable public network access and connect through private endpoints.',
+        mcsb: ['NS-2'], cisAzure: ['5.1.2', '5.1.7'], cisM365: [] },
+      { id: 'A-10', domain: 'azure', category: 'Compute', title: 'Virtual machines missing system updates', severity: 'high', status: 'fail',
+        affected: 27, affectedUnit: 'resources', scope: 'All subscriptions', source: 'Defender for Cloud', detected: '2026-09-14',
+        description: '27 of 142 VMs have pending critical or security updates older than 30 days.',
+        remediation: 'Enable Azure Update Manager periodic assessment and schedule maintenance configurations for production and dev rings.',
+        mcsb: ['PV-6'], cisAzure: ['3.1.1.1'], cisM365: [] },
+      { id: 'A-11', domain: 'azure', category: 'Compute', title: 'Virtual machines without endpoint protection', severity: 'high', status: 'fail',
+        affected: 8, affectedUnit: 'resources', scope: 'Subscription: dev-sandbox', source: 'Defender for Cloud', detected: '2026-09-14',
+        description: '8 VMs have no endpoint protection solution detected.',
+        remediation: 'Enable Defender for Servers Plan 1 or 2 on the subscription so Defender for Endpoint is auto-provisioned.',
+        mcsb: ['ES-1', 'ES-2'], cisAzure: ['8.8', '3.1.3.3'], cisM365: [] },
+      { id: 'A-12', domain: 'azure', category: 'Logging & Monitoring', title: 'Activity log not exported to Log Analytics', severity: 'high', status: 'fail',
+        affected: 2, affectedUnit: 'subscriptions', scope: 'Subscriptions: dev-sandbox, shared-services', source: 'Defender for Cloud', detected: '2026-09-14',
+        description: '2 of 5 subscriptions have no diagnostic setting sending the Activity log to a workspace; retention is limited to 90 days in the portal.',
+        remediation: 'Create a subscription diagnostic setting for all Activity log categories to the central Log Analytics workspace.',
+        mcsb: ['LT-3', 'LT-5'], cisAzure: ['6.1.1'], cisM365: [] },
+      { id: 'A-13', domain: 'azure', category: 'Logging & Monitoring', title: 'Activity log alerts for critical operations missing', severity: 'medium', status: 'fail',
+        affected: 5, affectedUnit: 'subscriptions', scope: 'All subscriptions', source: 'Azure Policy', detected: '2026-09-14',
+        description: 'No alert rules exist for Create/Update Policy Assignment, Create/Update NSG, or Create/Update SQL Server Firewall Rule.',
+        remediation: 'Deploy activity log alert rules (Azure Policy initiative "Deploy Activity Log alerts") wired to the security action group.',
+        mcsb: ['LT-3', 'IR-2'], cisAzure: ['6.2.1', '6.2.3', '6.2.7'], cisM365: [] },
+      { id: 'A-14', domain: 'azure', category: 'Defender Plans', title: 'Defender for Cloud plans not enabled on all subscriptions', severity: 'high', status: 'fail',
+        affected: 5, affectedUnit: 'subscriptions', scope: 'All subscriptions', source: 'Defender for Cloud', detected: '2026-09-14',
+        description: 'Defender for Servers is off in 1 subscription, Defender for Storage in 3, and Defender for Key Vault everywhere.',
+        remediation: 'Enable the plans at the management group level via Azure Policy so new subscriptions inherit them.',
+        mcsb: ['LT-1'], cisAzure: ['3.1.3.1', '3.1.5.1', '3.1.8.1'], cisM365: [] },
+      { id: 'A-15', domain: 'azure', category: 'Storage', title: 'Blob soft delete enabled on all storage accounts', severity: 'low', status: 'pass',
+        affected: 0, affectedUnit: 'resources', scope: 'All subscriptions', source: 'Defender for Cloud', detected: '2026-09-14',
+        description: 'All 37 storage accounts retain deleted blobs for at least 7 days.',
+        remediation: 'No action required. Consider container soft delete and versioning for critical data.',
+        mcsb: ['BR-1'], cisAzure: ['4.10'], cisM365: [] },
+      { id: 'A-16', domain: 'azure', category: 'Compute', title: 'Trusted Launch not enabled on eligible VMs', severity: 'low', status: 'warn',
+        affected: 61, affectedUnit: 'resources', scope: 'All subscriptions', source: 'Defender for Cloud', detected: '2026-09-14',
+        description: '61 Gen2 VMs run without Secure Boot and vTPM. Migration requires a brief restart.',
+        remediation: 'Plan a maintenance window to enable Trusted Launch on eligible VMs and set it as default in deployment templates.',
+        mcsb: ['PV-3'], cisAzure: ['8.11'], cisM365: [] },
+      { id: 'A-17', domain: 'azure', category: 'Storage', title: 'Storage accounts enforce TLS 1.2 minimum', severity: 'low', status: 'pass',
+        affected: 0, affectedUnit: 'resources', scope: 'All subscriptions', source: 'Defender for Cloud', detected: '2026-09-14',
+        description: 'All 37 storage accounts reject TLS 1.0 and 1.1 connections.',
+        remediation: 'No action required.',
+        mcsb: ['DP-3'], cisAzure: ['4.15'], cisM365: [] },
+      { id: 'A-18', domain: 'azure', category: 'SQL', title: 'Transparent Data Encryption enabled on all SQL databases', severity: 'low', status: 'pass',
+        affected: 0, affectedUnit: 'resources', scope: 'All subscriptions', source: 'Defender for Cloud', detected: '2026-09-14',
+        description: 'All 31 Azure SQL databases have TDE enabled with service-managed keys.',
+        remediation: 'No action required. Consider customer-managed keys for regulated workloads.',
+        mcsb: ['DP-4'], cisAzure: [], cisM365: [] },
+      { id: 'A-19', domain: 'azure', category: 'Network', title: 'Network Watcher enabled in all deployed regions', severity: 'low', status: 'pass',
+        affected: 0, affectedUnit: 'subscriptions', scope: 'All subscriptions', source: 'Defender for Cloud', detected: '2026-09-14',
+        description: 'Network Watcher instances exist in every region that hosts virtual networks.',
+        remediation: 'No action required.',
+        mcsb: ['LT-4'], cisAzure: ['7.6'], cisM365: [] },
+
+      // ---------------- Defender ----------------
+      { id: 'D-01', domain: 'defender', category: 'Vulnerabilities', title: 'Devices exposed to critical CVEs with public exploits', severity: 'critical', status: 'fail',
+        affected: 214, affectedUnit: 'devices', scope: 'Defender for Endpoint: 1,208 onboarded devices', source: 'MDVM', detected: '2026-09-14',
+        description: '214 devices are exposed to CVSS 9+ vulnerabilities for which exploit code is publicly available (see CVE table).',
+        remediation: 'Prioritize the top 5 CVEs by exposed device count, create remediation requests to Intune from Defender Vulnerability Management, and track SLA (7 days for critical).',
+        mcsb: ['PV-5', 'PV-6'], cisAzure: ['3.1.3.2'], cisM365: [] },
+      { id: 'D-02', domain: 'defender', category: 'Vulnerabilities', title: 'Devices missing security updates for more than 30 days', severity: 'high', status: 'fail',
+        affected: 96, affectedUnit: 'devices', scope: 'Defender for Endpoint', source: 'MDVM', detected: '2026-09-14',
+        description: '96 devices lack cumulative updates released more than 30 days ago.',
+        remediation: 'Review Intune update ring compliance, fix devices stuck on failed installs and enforce deadlines with grace periods.',
+        mcsb: ['PV-6'], cisAzure: ['3.1.1.1'], cisM365: [] },
+      { id: 'D-03', domain: 'defender', category: 'Device Health', title: 'Devices running end-of-support operating systems', severity: 'high', status: 'fail',
+        affected: 11, affectedUnit: 'devices', scope: 'Defender for Endpoint', source: 'MDVM', detected: '2026-09-14',
+        description: '11 servers run Windows Server 2012 R2 without Extended Security Updates; new vulnerabilities will not be patched.',
+        remediation: 'Migrate or decommission. If migration is not possible within 90 days, enroll via Azure Arc for ESU coverage.',
+        mcsb: ['PV-6'], cisAzure: [], cisM365: [] },
+      { id: 'D-04', domain: 'defender', category: 'Endpoint Protection', title: 'Servers not onboarded to Defender for Endpoint', severity: 'high', status: 'fail',
+        affected: 18, affectedUnit: 'devices', scope: 'Azure and Arc-enabled servers', source: 'Defender for Cloud', detected: '2026-09-14',
+        description: '18 servers covered by Defender for Servers have no MDE sensor reporting, so there is no EDR telemetry.',
+        remediation: 'Check the MDE unified agent extension status, fix connectivity to the Defender service URLs and re-run onboarding.',
+        mcsb: ['ES-1'], cisAzure: ['3.1.3.1'], cisM365: [] },
+      { id: 'D-05', domain: 'defender', category: 'Endpoint Protection', title: 'Tamper protection disabled on devices', severity: 'medium', status: 'fail',
+        affected: 22, affectedUnit: 'devices', scope: 'Defender for Endpoint', source: 'Defender XDR', detected: '2026-09-14',
+        description: '22 devices allow local changes to Defender Antivirus settings, so malware can disable real-time protection.',
+        remediation: 'Enable tamper protection tenant-wide from Defender XDR settings and via Intune endpoint security policy.',
+        mcsb: ['ES-2'], cisAzure: [], cisM365: [] },
+      { id: 'D-06', domain: 'defender', category: 'Endpoint Protection', title: 'Attack surface reduction rules in audit mode only', severity: 'medium', status: 'warn',
+        affected: 340, affectedUnit: 'devices', scope: 'Defender for Endpoint', source: 'Microsoft Secure Score', detected: '2026-09-14',
+        description: 'All 16 ASR rules are in audit mode across 340 workstations. Events are logged but not blocked.',
+        remediation: 'Review audit events for 30 days, add exclusions, then switch the Microsoft-recommended standard-protection rules to Block.',
+        mcsb: ['ES-2', 'PV-1'], cisAzure: [], cisM365: [] },
+      { id: 'D-07', domain: 'defender', category: 'Incidents', title: 'High-severity incidents open more than 7 days without assignment', severity: 'high', status: 'fail',
+        affected: 3, affectedUnit: 'policies', scope: 'Defender XDR incident queue', source: 'Defender XDR', detected: '2026-09-14',
+        description: '3 high-severity incidents (suspected credential theft, suspicious PowerShell, mailbox forwarding rule) have no owner.',
+        remediation: 'Assign owners, apply automatic attack disruption, and set an incident triage SLA of 24 hours for high severity.',
+        mcsb: ['IR-3', 'IR-4'], cisAzure: [], cisM365: [] },
+      { id: 'D-08', domain: 'defender', category: 'Email & Collaboration', title: 'Safe Links and Safe Attachments not applied to all users', severity: 'medium', status: 'fail',
+        affected: 1, affectedUnit: 'policies', scope: 'Defender for Office 365', source: 'Microsoft Secure Score', detected: '2026-09-14',
+        description: 'Custom Safe Links and Safe Attachments policies cover only the finance group; the rest rely on the Built-in protection preset.',
+        remediation: 'Assign the Standard or Strict preset security policy to all users, or extend the custom policies to the whole tenant.',
+        mcsb: [], cisAzure: [], cisM365: ['2.1.1', '2.1.4'] },
+      { id: 'D-09', domain: 'defender', category: 'Email & Collaboration', title: 'Priority account protection not enabled', severity: 'low', status: 'fail',
+        affected: 1, affectedUnit: 'policies', scope: 'Defender for Office 365', source: 'Microsoft Secure Score', detected: '2026-09-14',
+        description: 'Executives and finance leads are not tagged as priority accounts, so they do not receive differentiated protection or reporting.',
+        remediation: 'Tag priority accounts in the Defender portal and enable priority account protection.',
+        mcsb: [], cisAzure: [], cisM365: ['2.4.1'] },
+      { id: 'D-10', domain: 'defender', category: 'Secure Score', title: 'Microsoft 365 unified audit log enabled', severity: 'low', status: 'pass',
+        affected: 0, affectedUnit: 'policies', scope: 'Microsoft Purview', source: 'Microsoft Secure Score', detected: '2026-09-14',
+        description: 'Unified audit logging is on with 180-day retention.',
+        remediation: 'No action required.',
+        mcsb: ['LT-3'], cisAzure: [], cisM365: ['3.1.1'] },
+      { id: 'D-11', domain: 'defender', category: 'Endpoint Protection', title: 'Workstations onboarded to Defender for Endpoint', severity: 'low', status: 'pass',
+        affected: 0, affectedUnit: 'devices', scope: 'Intune-managed workstations', source: 'Defender XDR', detected: '2026-09-14',
+        description: '1,190 of 1,208 Intune-managed devices report to Defender for Endpoint; the remaining 18 are the servers tracked in D-04.',
+        remediation: 'No action required for workstations.',
+        mcsb: ['ES-1'], cisAzure: [], cisM365: [] },
+      { id: 'D-12', domain: 'defender', category: 'Endpoint Protection', title: 'Cloud-delivered protection and automatic sample submission enabled', severity: 'low', status: 'pass',
+        affected: 0, affectedUnit: 'devices', scope: 'Defender Antivirus policy', source: 'Microsoft Secure Score', detected: '2026-09-14',
+        description: 'Defender Antivirus cloud protection is set to High and sample submission is enabled tenant-wide via Intune.',
+        remediation: 'No action required.',
+        mcsb: ['ES-2'], cisAzure: [], cisM365: [] },
+
+      // ---------------- AI & Agents ----------------
+      // CIS Azure v3.0 has no AI-services section, so cisAzure stays empty here. OWASP IDs are threat categories (coverage), not pass/fail controls.
+      { id: 'AI-01', domain: 'ai', category: 'AI Resources', title: 'Public network access enabled on Azure OpenAI / AI Services accounts', severity: 'high', status: 'fail',
+        affected: 5, affectedUnit: 'AI resources', scope: AI_SCOPE, source: 'Defender for Cloud (AI SPM)', detected: '2026-09-14',
+        description: '5 of 9 Azure OpenAI and AI Services accounts accept traffic from any network and only 3 accounts have a private endpoint. Model endpoints and their keys are reachable from the Internet.',
+        remediation: 'Set public network access to Disabled, or restrict it to selected virtual networks and IP ranges. Add a private endpoint per account and resolve it through the privatelink.openai.azure.com private DNS zone. Move application traffic onto the virtual network before disabling public access.',
+        mcsb: ['NS-2'], cisAzure: [], cisM365: [], owaspLlm: ['LLM10'], owaspAgentic: [], atlas: ['AML.T0040'] },
+      { id: 'AI-02', domain: 'ai', category: 'AI Resources', title: 'Key-based authentication enabled on AI accounts; keys found in app settings', severity: 'high', status: 'fail',
+        affected: 7, affectedUnit: 'AI resources', scope: AI_SCOPE, source: 'Defender for Cloud (AI SPM)', detected: '2026-09-14',
+        description: '7 of 9 AI accounts still allow API-key authentication (disableLocalAuth is not set). Defender for Cloud found 3 account keys stored in plain text in App Service application settings.',
+        remediation: 'Set disableLocalAuth to true on every account. Grant the Cognitive Services OpenAI User role to each application managed identity and switch the SDK to Entra token authentication. Rotate both keys and remove them from App Service settings and pipelines.',
+        mcsb: ['IM-1', 'IM-3', 'IM-8'], cisAzure: [], cisM365: [], owaspLlm: [], owaspAgentic: ['ASI03'], atlas: ['AML.T0055'] },
+      { id: 'AI-03', domain: 'ai', category: 'Content Safety', title: 'Prompt Shields disabled on model deployments through a custom content filter', severity: 'high', status: 'fail',
+        affected: 4, affectedUnit: 'deployments', scope: 'Deployments: gpt-4o-prod, gpt-4.1-legal, o4-mini-research, gpt-4o-realtime', source: 'Azure AI Foundry', detected: '2026-09-14',
+        description: '4 of 12 model deployments use a custom content filter with the jailbreak and indirect-attack Prompt Shields turned off. Two of them serve retrieval-augmented answers over SharePoint content, so injected instructions in documents reach the model unfiltered.',
+        remediation: 'Assign a content filter with both Prompt Shields (jailbreak and indirect attacks) set to Block, not Annotate, to every deployment. Keep the default filter as the baseline and require a review for any custom filter that lowers protection. Add groundedness detection for the RAG deployments.',
+        mcsb: [], cisAzure: [], cisM365: [], owaspLlm: ['LLM01'], owaspAgentic: ['ASI01'], atlas: ['AML.T0051', 'AML.T0054'] },
+      { id: 'AI-04', domain: 'ai', category: 'AI Resources', title: 'Diagnostic logs not collected for AI accounts', severity: 'high', status: 'fail',
+        affected: 5, affectedUnit: 'AI resources', scope: AI_SCOPE, source: 'Defender for Cloud (AI SPM)', detected: '2026-09-14',
+        description: '5 of 9 AI accounts have no diagnostic setting sending RequestResponse, Audit and Trace logs to Log Analytics. Prompt volume, content-filter results and key usage cannot be investigated for those accounts.',
+        remediation: 'Create a diagnostic setting on each account for the RequestResponse, Audit, Trace and AllMetrics categories targeting the security workspace. Enforce it with the built-in Azure Policy "Deploy diagnostic settings for Cognitive Services".',
+        mcsb: ['LT-3'], cisAzure: [], cisM365: [], owaspLlm: [], owaspAgentic: [], atlas: [] },
+      { id: 'AI-05', domain: 'ai', category: 'Defender for AI', title: 'Defender for AI services plan not enabled on all subscriptions', severity: 'high', status: 'fail',
+        affected: 3, affectedUnit: 'subscriptions', scope: AI_SCOPE, source: 'Defender for Cloud', detected: '2026-09-14',
+        description: 'The Defender for AI services plan is on for 2 of 5 subscriptions. 7 of 9 AI accounts, including both production Azure OpenAI accounts, produce no jailbreak, prompt-injection, data-leak or credential-theft alerts.',
+        remediation: 'Enable the Defender for AI services plan on the three remaining subscriptions from Defender for Cloud environment settings. Turn on user prompt evidence so alerts include the suspicious prompt segments. Route the alerts to the SOC through the existing Defender XDR integration.',
+        mcsb: ['LT-1'], cisAzure: [], cisM365: [], owaspLlm: ['LLM01', 'LLM02'], owaspAgentic: [], atlas: [] },
+      { id: 'AI-06', domain: 'ai', category: 'Content Safety', title: 'Jailbreak attempts detected on production deployments', severity: 'medium', status: 'warn',
+        affected: 2, affectedUnit: 'deployments', scope: 'Deployments: gpt-4o-mini-helpdesk, gpt-4o-mini-support', source: 'Defender for AI services', detected: '2026-09-14',
+        description: '53 jailbreak and direct prompt-injection attempts hit two deployments covered by Defender for AI services in the last 30 days. Prompt Shields blocked all 47 against the helpdesk deployment; the 6 against the support deployment were only annotated because its filter runs in annotate mode. No successful exfiltration was observed.',
+        remediation: 'Switch the gpt-4o-mini-support content filter from Annotate to Block for jailbreak attempts. Review the 6 detected-only prompts and the calling application identities in the Defender for AI alerts. Add rate limiting per caller on the support API.',
+        mcsb: ['LT-1'], cisAzure: [], cisM365: [], owaspLlm: ['LLM01', 'LLM07'], owaspAgentic: ['ASI01'], atlas: ['AML.T0054'] },
+      { id: 'AI-07', domain: 'ai', category: 'Purview DSPM for AI', title: 'Sensitive data in prompts to Copilot and third-party AI apps without a DLP policy', severity: 'high', status: 'fail',
+        affected: 1284, affectedUnit: 'prompts', scope: TENANT, source: 'Purview DSPM for AI', detected: '2026-09-14',
+        description: 'Purview DSPM for AI recorded 1,284 prompts containing sensitive information types in 30 days: 640 with personal data, 312 with credit card numbers and 332 with credentials or keys. 41% went to third-party AI sites through the browser. No DLP policy targets Microsoft 365 Copilot or AI websites.',
+        remediation: 'Deploy the DSPM for AI one-click policies: audit Copilot interactions and block sensitive info in prompts to third-party AI sites through Edge and the Purview browser extension. Create an Endpoint DLP rule for credentials and payment card data pasted into AI sites. Extend the Copilot DLP policy to labelled content.',
+        mcsb: ['DP-1', 'DP-2'], cisAzure: [], cisM365: ['3.2.1'], owaspLlm: ['LLM02'], owaspAgentic: [], atlas: ['AML.T0057'] },
+      { id: 'AI-08', domain: 'ai', category: 'Purview DSPM for AI', title: 'Confidential SharePoint sites discoverable by Microsoft 365 Copilot org-wide', severity: 'high', status: 'fail',
+        affected: 23, affectedUnit: 'sites', scope: TENANT, source: 'Purview DSPM for AI', detected: '2026-09-14',
+        description: '23 SharePoint sites holding content labelled Confidential grant read access to Everyone except external users, so Microsoft 365 Copilot can surface that content to any employee. Restricted Content Discovery is not applied to any of them.',
+        remediation: 'Apply Restricted Content Discovery to the 23 sites from SharePoint Advanced Management while the permissions are fixed. Run the oversharing report and replace broad groups with owner-managed groups. Add the "Confidential" label to the Copilot DLP policy so labelled items are excluded from Copilot processing.',
+        mcsb: ['DP-1', 'PA-7'], cisAzure: [], cisM365: [], owaspLlm: ['LLM02', 'LLM08'], owaspAgentic: [], atlas: [] },
+      { id: 'AI-09', domain: 'ai', category: 'Copilot Studio Agents', title: 'Copilot Studio agents shared with the whole organization or published without authentication', severity: 'high', status: 'fail',
+        affected: 9, affectedUnit: 'agents', scope: 'Power Platform: default environment + 3 managed environments', source: 'Power Platform admin center', detected: '2026-09-14',
+        description: '6 of 38 Copilot Studio agents are shared with everyone in the organization and 3 are published to a demo website channel with authentication set to No authentication. One of the unauthenticated agents can read the IT knowledge base and open tickets.',
+        remediation: 'Restrict agent sharing to security groups and require Microsoft Entra authentication before publishing. Disable the demo website channel on the three unauthenticated agents. Set the tenant-level Copilot Studio setting that requires authentication for new agents.',
+        mcsb: ['IM-1', 'PA-7'], cisAzure: [], cisM365: [], owaspLlm: ['LLM06'], owaspAgentic: ['ASI03', 'ASI09'], atlas: [] },
+      { id: 'AI-10', domain: 'ai', category: 'Copilot Studio Agents', title: 'Agents use premium connectors in the default environment without a DLP policy', severity: 'high', status: 'fail',
+        affected: 9, affectedUnit: 'agents', scope: 'Power Platform: default environment', source: 'Power Platform admin center', detected: '2026-09-14',
+        description: '9 agents in the default environment call SQL Server, HTTP and SharePoint write actions through premium connectors. No Power Platform data policy classifies those connectors, so an agent can read business data and send it to arbitrary HTTP endpoints in one flow.',
+        remediation: 'Create a Power Platform data policy for the default environment that places HTTP and SQL Server in the Blocked group and SharePoint in Business. Move production agents into a managed environment with maker onboarding and sharing limits. Review the 9 agents for connector actions they do not need.',
+        mcsb: ['PA-7', 'DP-2'], cisAzure: [], cisM365: [], owaspLlm: ['LLM06'], owaspAgentic: ['ASI02', 'ASI04'], atlas: [] },
+      { id: 'AI-11', domain: 'ai', category: 'Agent Identities', title: 'Agent identities without an owner or sponsor', severity: 'medium', status: 'fail',
+        affected: 17, affectedUnit: 'agent identities', scope: 'Tenant: contoso.onmicrosoft.com (52 agent identities)', source: 'Entra Agent ID', detected: '2026-09-14',
+        description: '17 of 52 agent identities in Entra Agent ID have no owner or sponsor recorded, and 11 of them have not signed in for more than 90 days. Nobody is accountable for their permissions or for disabling them.',
+        remediation: 'Assign an owner and a sponsor to every agent identity and make both mandatory in the agent registration process. Disable the 11 dormant identities and delete them after 30 days without an appeal. Add agent identities to the quarterly access review.',
+        mcsb: ['IM-3', 'PA-4'], cisAzure: [], cisM365: [], owaspLlm: [], owaspAgentic: ['ASI03', 'ASI10'], atlas: [] },
+      { id: 'AI-12', domain: 'ai', category: 'Agent Identities', title: 'Over-permissioned agent identities using long-lived client secrets', severity: 'critical', status: 'fail',
+        affected: 12, affectedUnit: 'agent identities', scope: 'Tenant: contoso.onmicrosoft.com (52 agent identities)', source: 'Entra Agent ID', detected: '2026-09-14',
+        description: '9 agent identities hold Microsoft Graph application permissions beyond their purpose, including Directory.ReadWrite.All, Mail.ReadWrite and Sites.ReadWrite.All. 12 authenticate with client secrets, 5 of which are valid for more than 2 years. A leaked secret would let an attacker act as the agent across the tenant.',
+        remediation: 'Replace client secrets with managed identities or federated credentials for every agent. Remove Directory.ReadWrite.All and scope Mail and Sites permissions to specific mailboxes and sites with resource-specific consent. Enforce Conditional Access for workload identities and alert on new high-privilege grants.',
+        mcsb: ['IM-3', 'IM-8', 'PA-7'], cisAzure: [], cisM365: [], owaspLlm: ['LLM06'], owaspAgentic: ['ASI03'], atlas: ['AML.T0055'] },
+      { id: 'AI-13', domain: 'ai', category: 'MCP & Tools', title: 'Agents connect to MCP servers outside the approved catalog', severity: 'medium', status: 'fail',
+        affected: 2, affectedUnit: 'MCP servers', scope: 'Azure AI Foundry projects: legal-ai, finance-automation', source: 'Azure AI Foundry', detected: '2026-09-14',
+        description: '2 of 5 MCP servers referenced by Foundry and Copilot Studio agents are remote endpoints not in the approved tool catalog. One (finance-tools) accepts connections without authentication and exposes write actions against the invoicing API.',
+        remediation: 'Publish an approved MCP server catalog and block agents from registering tools outside it. Require Entra authentication and per-agent tokens on every remote MCP server. Move finance-tools behind API Management with a private endpoint and turn on tool-call logging.',
+        mcsb: ['AM-2', 'NS-2'], cisAzure: [], cisM365: [], owaspLlm: ['LLM03'], owaspAgentic: ['ASI02', 'ASI04', 'ASI07'], atlas: ['AML.T0053'] },
+      { id: 'AI-14', domain: 'ai', category: 'Shadow AI', title: 'Unsanctioned generative AI apps in use', severity: 'medium', status: 'fail',
+        affected: 28, affectedUnit: 'apps', scope: TENANT, source: 'Defender for Cloud Apps', detected: '2026-09-14',
+        description: 'Cloud discovery found 41 generative AI apps in use by 1,912 users in 30 days. 28 are unsanctioned and 3 have a risk score of 3 or lower because they retain prompts and lack SOC 2 or GDPR commitments. Uploads to these apps are not inspected.',
+        remediation: 'Mark the 3 low-score apps as unsanctioned so Defender for Endpoint blocks them, and tag the approved assistants as sanctioned. Create a Defender for Cloud Apps policy that alerts on new generative AI apps above 100 users. Publish the approved AI tools list to employees.',
+        mcsb: ['AM-2', 'DP-2'], cisAzure: [], cisM365: [], owaspLlm: ['LLM02'], owaspAgentic: [], atlas: [] },
+      { id: 'AI-15', domain: 'ai', category: 'Model Deployments', title: 'All model deployments on supported model versions', severity: 'low', status: 'pass',
+        affected: 0, affectedUnit: 'deployments', scope: AI_SCOPE, source: 'Azure AI Foundry', detected: '2026-09-14',
+        description: 'All 12 model deployments run supported model versions with automatic upgrade enabled, and none is scheduled for retirement within 90 days.',
+        remediation: 'No action required. Keep the model retirement calendar in the monthly platform review.',
+        mcsb: [], cisAzure: [], cisM365: [], owaspLlm: ['LLM03'], owaspAgentic: [], atlas: [] },
+    ];
+    // Mapping arrays are optional per finding; normalize so every row carries every framework key.
+    for (const f of FINDINGS) for (const k of ['mcsb', 'cisAzure', 'cisM365', 'owaspLlm', 'owaspAgentic', 'atlas']) f[k] = f[k] || [];
+
+    const CVES = [
+      { cve: 'CVE-2024-38063', cvss: 9.8, severity: 'critical', exploitAvailable: true, exposedDevices: 87, software: 'Windows Server 2019/2022 (TCP/IP)', vendor: 'Microsoft', published: '2024-08-13', firstSeen: '2026-08-30' },
+      { cve: 'CVE-2024-38077', cvss: 9.8, severity: 'critical', exploitAvailable: true, exposedDevices: 41, software: 'Remote Desktop Licensing Service', vendor: 'Microsoft', published: '2024-07-09', firstSeen: '2026-08-30' },
+      { cve: 'CVE-2025-21298', cvss: 9.8, severity: 'critical', exploitAvailable: true, exposedDevices: 63, software: 'Windows OLE', vendor: 'Microsoft', published: '2025-01-14', firstSeen: '2026-09-02' },
+      { cve: 'CVE-2024-43491', cvss: 9.8, severity: 'critical', exploitAvailable: false, exposedDevices: 12, software: 'Windows 10 Servicing Stack', vendor: 'Microsoft', published: '2024-09-10', firstSeen: '2026-08-30' },
+      { cve: 'CVE-2024-4577', cvss: 9.8, severity: 'critical', exploitAvailable: true, exposedDevices: 23, software: 'PHP 8.x (CGI on Windows)', vendor: 'PHP Group', published: '2024-06-09', firstSeen: '2026-09-05' },
+      { cve: 'CVE-2024-7971', cvss: 8.8, severity: 'high', exploitAvailable: true, exposedDevices: 152, software: 'Microsoft Edge (Chromium V8)', vendor: 'Microsoft', published: '2024-08-21', firstSeen: '2026-09-10' },
+      { cve: 'CVE-2023-4863', cvss: 8.8, severity: 'high', exploitAvailable: true, exposedDevices: 38, software: 'libwebp (Edge, Chrome, Teams)', vendor: 'Google', published: '2023-09-12', firstSeen: '2026-08-30' },
+      { cve: 'CVE-2024-6387', cvss: 8.1, severity: 'high', exploitAvailable: true, exposedDevices: 19, software: 'OpenSSH 8.5-9.7 (Linux)', vendor: 'OpenBSD', published: '2024-07-01', firstSeen: '2026-08-30' },
+      { cve: 'CVE-2024-21412', cvss: 8.1, severity: 'high', exploitAvailable: true, exposedDevices: 71, software: 'Windows SmartScreen', vendor: 'Microsoft', published: '2024-02-13', firstSeen: '2026-08-30' },
+      { cve: 'CVE-2024-49138', cvss: 7.8, severity: 'high', exploitAvailable: true, exposedDevices: 96, software: 'Windows CLFS driver', vendor: 'Microsoft', published: '2024-12-10', firstSeen: '2026-09-01' },
+      { cve: 'CVE-2024-38193', cvss: 7.8, severity: 'high', exploitAvailable: true, exposedDevices: 58, software: 'Windows AFD.sys', vendor: 'Microsoft', published: '2024-08-13', firstSeen: '2026-08-30' },
+      { cve: 'CVE-2024-30051', cvss: 7.8, severity: 'high', exploitAvailable: true, exposedDevices: 44, software: 'Desktop Window Manager', vendor: 'Microsoft', published: '2024-05-14', firstSeen: '2026-08-30' },
+      { cve: 'CVE-2024-38112', cvss: 7.5, severity: 'high', exploitAvailable: true, exposedDevices: 29, software: 'Windows MSHTML', vendor: 'Microsoft', published: '2024-07-09', firstSeen: '2026-08-30' },
+      { cve: 'CVE-2024-30088', cvss: 7.0, severity: 'medium', exploitAvailable: true, exposedDevices: 33, software: 'Windows kernel', vendor: 'Microsoft', published: '2024-06-11', firstSeen: '2026-08-30' },
+      { cve: 'CVE-2024-38213', cvss: 6.5, severity: 'medium', exploitAvailable: true, exposedDevices: 117, software: 'Windows Mark of the Web', vendor: 'Microsoft', published: '2024-08-13', firstSeen: '2026-08-30' },
+    ];
+
+    const SECURE_SCORE = {
+      defenderForCloud: {
+        label: 'Defender for Cloud secure score', current: 34, max: 58,
+        controls: [
+          { name: 'Enable MFA', current: 4, max: 10, unhealthy: 7 },
+          { name: 'Remediate vulnerabilities', current: 2, max: 6, unhealthy: 214 },
+          { name: 'Apply system updates', current: 2, max: 6, unhealthy: 27 },
+          { name: 'Restrict unauthorized network access', current: 1, max: 4, unhealthy: 23 },
+          { name: 'Manage access and permissions', current: 2, max: 4, unhealthy: 9 },
+          { name: 'Enable encryption at rest', current: 3, max: 4, unhealthy: 3 },
+          { name: 'Enable endpoint protection', current: 1, max: 2, unhealthy: 8 },
+          { name: 'Enable auditing and logging', current: 0, max: 1, unhealthy: 38 },
+        ],
+      },
+      microsoft365: {
+        label: 'Microsoft Secure Score', current: 412, max: 731,
+        categories: [
+          { name: 'Identity', current: 41, max: 82 },
+          { name: 'Devices', current: 210, max: 371 },
+          { name: 'Apps', current: 88, max: 168 },
+          { name: 'Data', current: 73, max: 110 },
+        ],
+      },
+    };
+
+    // Defender for Cloud's built-in CIS regulatory compliance standard, as reported.
+    // Note: numbering follows the version Defender ships (v2.0.0), not v3.0 used in the mapping fields.
+    const DFC_CIS = {
+      standard: 'CIS Microsoft Azure Foundations Benchmark v2.0.0',
+      summary: { passed: 41, failed: 23, skipped: 6, unsupported: 12 },
+      controls: [
+        { control: '1.1.1', title: 'Ensure Security Defaults is enabled on Azure Active Directory', state: 'Skipped', passed: 0, failed: 0 },
+        { control: '1.1.2', title: 'Ensure that multi-factor authentication is enabled for all privileged users', state: 'Failed', passed: 16, failed: 7 },
+        { control: '1.1.3', title: 'Ensure that multi-factor authentication is enabled for all non-privileged users', state: 'Failed', passed: 1842, failed: 568 },
+        { control: '1.5', title: 'Ensure guest users are reviewed on a regular basis', state: 'Failed', passed: 126, failed: 61 },
+        { control: '2.1.1', title: 'Ensure that Microsoft Defender for Servers is set to On', state: 'Failed', passed: 4, failed: 1 },
+        { control: '2.1.4', title: 'Ensure that Microsoft Defender for Storage is set to On', state: 'Failed', passed: 2, failed: 3 },
+        { control: '3.1', title: 'Ensure that Secure transfer required is set to Enabled', state: 'Failed', passed: 33, failed: 4 },
+        { control: '3.7', title: 'Ensure that Public access level is disabled for storage accounts with blob containers', state: 'Failed', passed: 35, failed: 2 },
+        { control: '3.8', title: 'Ensure default network access rule for storage accounts is set to deny', state: 'Failed', passed: 26, failed: 11 },
+        { control: '4.1.1', title: 'Ensure that Auditing is set to On for SQL servers', state: 'Failed', passed: 6, failed: 3 },
+        { control: '5.1.1', title: 'Ensure that a Diagnostic Setting exists for the Activity log', state: 'Failed', passed: 3, failed: 2 },
+        { control: '6.1', title: 'Ensure that RDP access from the Internet is evaluated and restricted', state: 'Failed', passed: 31, failed: 6 },
+        { control: '6.2', title: 'Ensure that SSH access from the Internet is evaluated and restricted', state: 'Failed', passed: 33, failed: 4 },
+        { control: '7.6', title: 'Ensure that Endpoint Protection for all Virtual Machines is installed', state: 'Failed', passed: 134, failed: 8 },
+        { control: '8.5', title: 'Ensure the key vault is recoverable (purge protection)', state: 'Failed', passed: 5, failed: 3 },
+        { control: '3.9', title: 'Ensure soft delete is enabled for Azure Blob storage', state: 'Passed', passed: 37, failed: 0 },
+      ],
+    };
+
+    // Extra headline numbers that are not derivable from FINDINGS.
+    const STATS = {
+      entra: { users: 2410, mfaCapable: 1842, globalAdmins: 9, legacySignIns30d: 312, guests: 187, inactiveGuests: 61, permanentPrivileged: 14, riskyUsers: 23, caPolicies: 11, caReportOnly: 2 },
+      defender: { onboardedDevices: 1208, exposedCritical: 214, missingUpdates30d: 96, openHighIncidents: 3, mdeOnboardingGap: 18, alerts7d: 47 },
+      ai: { aiAccounts: 9, openAiAccounts: 6, aiServicesAccounts: 3, hubs: 3, projects: 7, deployments: 12, publicNetworkAccounts: 5, keyAuthAccounts: 7,
+            subscriptions: 5, defenderAiSubscriptions: 2, copilotStudioAgents: 38, agentsSharedOrgWide: 6, agentIdentities: 52, agentIdentitiesNoOwner: 17,
+            promptAttacks30d: 53, promptAttacksBlocked: 47, sensitivePrompts30d: 1284, genAiApps: 41, genAiAppsUnsanctioned: 28, mcpServers: 5 },
+    };
+
+    // Defender for AI services alerts, last 30 days (type is the short chart label, detail the full alert name).
+    const AI_ALERTS = [
+      { type: 'Jailbreak blocked', detail: 'Jailbreak attempt blocked by Prompt Shields', count: 47, severity: 'medium' },
+      { type: 'Jailbreak detected only', detail: 'Jailbreak attempt detected in annotate mode, not blocked', count: 6, severity: 'high' },
+      { type: 'Indirect prompt injection', detail: 'Indirect prompt injection in retrieved documents', count: 12, severity: 'high' },
+      { type: 'Sensitive data in response', detail: 'Sensitive data exposure in a model response', count: 9, severity: 'high' },
+      { type: 'Anomalous access (Tor)', detail: 'Access to the AI resource from a Tor exit node', count: 4, severity: 'medium' },
+      { type: 'Credential theft attempt', detail: 'Credential theft attempt through a model response', count: 2, severity: 'high' },
+      { type: 'Wallet abuse', detail: 'Suspected wallet abuse: abnormal token consumption', count: 1, severity: 'low' },
+    ];
+
+    // Agent inventory by platform and risk rating. Totals must equal STATS.ai.agentIdentities (52).
+    const AGENT_PLATFORMS = [
+      { platform: 'Copilot Studio', high: 7, medium: 12, low: 19 },
+      { platform: 'Foundry Agent Service', high: 2, medium: 3, low: 4 },
+      { platform: 'Custom (Entra Agent ID)', high: 2, medium: 1, low: 2 },
+    ];
+
+    // Representative agents from the inventory (10 of 52). findingIds link a row to the findings that cite it.
+    const AGENTS = [
+      { name: 'Contoso Sales Copilot', platform: 'Copilot Studio', owner: 'Dana Whitfield', authMode: 'Manual (OAuth)', connectors: 7, sharing: 'Everyone in org', risk: 'high', findingIds: ['AI-09', 'AI-10'] },
+      { name: 'IT Helpdesk Bot', platform: 'Copilot Studio', owner: '—', authMode: 'No authentication', connectors: 2, sharing: 'Public website', risk: 'high', findingIds: ['AI-09', 'AI-11'] },
+      { name: 'HR Benefits Assistant', platform: 'Copilot Studio', owner: 'Priya Natarajan', authMode: 'Microsoft Entra', connectors: 3, sharing: 'Everyone in org', risk: 'medium', findingIds: ['AI-09'] },
+      { name: 'Onboarding Q&A', platform: 'Copilot Studio', owner: 'Priya Natarajan', authMode: 'Microsoft Entra', connectors: 1, sharing: 'Everyone in org', risk: 'low', findingIds: [] },
+      { name: 'Expense Policy Helper', platform: 'Copilot Studio', owner: 'Finance Ops', authMode: 'Microsoft Entra', connectors: 2, sharing: 'Everyone in org', risk: 'low', findingIds: [] },
+      { name: 'Field Service Scheduler', platform: 'Copilot Studio', owner: 'Marcus Lee', authMode: 'Microsoft Entra', connectors: 4, sharing: 'Specific users', risk: 'low', findingIds: ['AI-10'] },
+      { name: 'Contract Review Agent', platform: 'Foundry Agent Service', owner: 'Legal AI team', authMode: 'Managed identity', connectors: 2, sharing: 'Owner only', risk: 'medium', findingIds: ['AI-13'] },
+      { name: 'Invoice Triage Agent', platform: 'Foundry Agent Service', owner: '—', authMode: 'Client secret', connectors: 3, sharing: 'Owner only', risk: 'high', findingIds: ['AI-11', 'AI-12', 'AI-13'] },
+      { name: 'DevOps Release Agent', platform: 'Custom (Entra Agent ID)', owner: 'Platform Eng', authMode: 'Client secret', connectors: 5, sharing: 'Specific users', risk: 'high', findingIds: ['AI-12'] },
+      { name: 'Security Triage Agent', platform: 'Custom (Entra Agent ID)', owner: 'SecOps', authMode: 'Managed identity', connectors: 3, sharing: 'Specific users', risk: 'low', findingIds: [] },
+    ];
+
+    const CONTROL_NAMES = {
+      // Microsoft cloud security benchmark v1
+      'IM-1': 'Use centralized identity and authentication system', 'IM-3': 'Manage application identities securely and automatically',
+      'IM-6': 'Use strong authentication controls', 'IM-7': 'Restrict resource access based on conditions',
+      'PA-1': 'Separate and limit highly privileged/administrative users', 'PA-2': 'Avoid standing access for user accounts and permissions',
+      'PA-3': 'Manage lifecycle of identities and entitlements', 'PA-4': 'Review and reconcile user access regularly',
+      'PA-5': 'Set up emergency access', 'PA-7': 'Follow just enough administration (least privilege) principle',
+      'DP-3': 'Encrypt sensitive data in transit', 'DP-4': 'Enable data at rest encryption by default', 'DP-6': 'Use a secure key management process', 'DP-8': 'Ensure security of key and certificate repository',
+      'NS-1': 'Establish network segmentation boundaries', 'NS-2': 'Secure cloud services with network controls', 'NS-3': 'Deploy firewall at the edge of enterprise network',
+      'LT-1': 'Enable threat detection capabilities', 'LT-3': 'Enable logging for security investigation', 'LT-4': 'Enable network logging for security investigation',
+      'LT-5': 'Centralize security log management and analysis',
+      'IR-2': 'Preparation: set up incident notification', 'IR-3': 'Detection and analysis: create incidents based on high-quality alerts', 'IR-4': 'Detection and analysis: investigate an incident',
+      'PV-1': 'Define and establish secure configurations', 'PV-3': 'Define and establish secure configurations for compute resources',
+      'PV-5': 'Perform vulnerability assessments', 'PV-6': 'Rapidly and automatically remediate vulnerabilities',
+      'ES-1': 'Use Endpoint Detection and Response (EDR)', 'ES-2': 'Use modern anti-malware software', 'BR-1': 'Ensure regular automated backups',
+      'IM-8': 'Restrict the exposure of credentials and secrets', 'DP-1': 'Discover, classify, and label sensitive data', 'DP-2': 'Monitor anomalies and threats targeting sensitive data',
+      'AM-2': 'Use only approved services',
+      // CIS Microsoft Azure Foundations Benchmark v3.0 (titles abbreviated; numbers hand-transcribed, verify against the PDF)
+      '2.1.1': 'Ensure Security Defaults is enabled (if Conditional Access is not used)', '2.1.3': 'Ensure MFA is enabled for all users',
+      '2.2.4': 'Ensure a Conditional Access policy requires MFA for administrators', '2.2.5': 'Ensure a Conditional Access policy requires MFA for all users',
+      '2.2.6': 'Ensure a Conditional Access policy requires MFA for risky sign-ins', '2.2.7': 'Ensure a Conditional Access policy requires MFA for Azure management',
+      '2.3': 'Ensure non-admin users are restricted from creating tenants', '2.4': 'Ensure guest users are reviewed on a regular basis',
+      '2.12': 'Ensure user consent for applications is restricted', '2.16': 'Ensure guest invite restrictions are set to admins or Guest Inviter role',
+      '2.26': 'Ensure fewer than 5 users have Global Administrator assigned',
+      '3.1.1.1': 'Ensure Auto provisioning / Machine configuration remediates missing system updates', '3.1.3.1': 'Ensure Microsoft Defender for Servers is set to On',
+      '3.1.3.2': 'Ensure Defender Vulnerability Management is enabled', '3.1.3.3': 'Ensure Endpoint Protection is installed on all VMs',
+      '3.1.5.1': 'Ensure Microsoft Defender for Storage is set to On', '3.1.8.1': 'Ensure Microsoft Defender for Key Vault is set to On',
+      '4.1': 'Ensure Secure transfer required is set to Enabled', '4.7': 'Ensure default network access rule for storage accounts is set to Deny',
+      '4.10': 'Ensure soft delete is enabled for Azure Blob storage', '4.15': 'Ensure the Minimum TLS version for storage accounts is set to 1.2', '4.17': 'Ensure Allow Blob anonymous access is set to Disabled',
+      '5.1.1': 'Ensure Auditing is set to On for SQL servers', '5.1.2': 'Ensure no SQL server firewall rule allows 0.0.0.0/0', '5.1.7': 'Ensure public network access on SQL servers is disabled',
+      '6.1.1': 'Ensure a Diagnostic Setting exists for subscription Activity logs', '6.2.1': 'Ensure an Activity Log alert exists for Create/Update Policy Assignment',
+      '6.2.3': 'Ensure an Activity Log alert exists for Create/Update Network Security Group', '6.2.7': 'Ensure an Activity Log alert exists for Create/Update SQL Server Firewall Rule',
+      '7.1': 'Ensure RDP access from the Internet is restricted', '7.2': 'Ensure SSH access from the Internet is restricted', '7.6': 'Ensure Network Watcher is enabled for all regions',
+      '8.8': 'Ensure Endpoint Protection for all Virtual Machines is installed', '8.11': 'Ensure Trusted Launch is enabled on Virtual Machines',
+      '9.1': 'Ensure expiration date is set for all keys in RBAC key vaults', '9.3': 'Ensure expiration date is set for all secrets in RBAC key vaults', '9.5': 'Ensure the key vault is recoverable (purge protection)',
+      // CIS Microsoft 365 Foundations Benchmark v4 (titles abbreviated; numbers hand-transcribed, verify against the PDF)
+      '1.1.2': 'Ensure two emergency access accounts have been defined', '1.1.3': 'Ensure that between two and four global admins are designated',
+      '2.1.1': 'Ensure Safe Links for Office applications is enabled', '2.1.4': 'Ensure Safe Attachments policy is enabled', '2.4.1': 'Ensure Priority account protection is enabled',
+      '3.1.1': 'Ensure Microsoft 365 audit log search is enabled',
+      '5.1.1.1': 'Ensure Security Defaults is disabled when Conditional Access is used', '5.1.2.3': 'Ensure Restrict non-admin users from creating tenants is Yes',
+      '5.1.5.1': 'Ensure user consent to apps accessing company data is not allowed', '5.1.5.2': 'Ensure the admin consent workflow is enabled',
+      '5.1.6.3': 'Ensure guest invite restrictions are configured', '5.1.8.1': 'Ensure password hash sync is enabled for hybrid deployments',
+      '5.2.2.1': 'Ensure MFA is enabled for administrative roles', '5.2.2.9': 'Ensure sign-in frequency is enabled and browser sessions are not persistent for administrators',
+      '5.2.2.2': 'Ensure MFA is enabled for all users', '5.2.2.3': 'Enable Conditional Access policies to block legacy authentication',
+      '5.2.2.5': 'Ensure phishing-resistant MFA strength is required for administrators', '5.2.2.6': 'Enable Identity Protection user risk policies',
+      '5.2.2.7': 'Enable Identity Protection sign-in risk policies', '5.2.3.4': 'Ensure all member users are MFA capable',
+      '5.3.1': 'Ensure Privileged Identity Management is used to manage roles', '5.3.2': 'Ensure access reviews for guest users are configured',
+      '5.3.4': 'Ensure approval is required for Global Administrator role activation', '6.5.4': 'Ensure SMTP AUTH is disabled',
+      '3.2.1': 'Ensure DLP policies are enabled',
+      // OWASP Top 10 for LLM Applications 2025
+      'LLM01': 'Prompt Injection', 'LLM02': 'Sensitive Information Disclosure', 'LLM03': 'Supply Chain', 'LLM04': 'Data and Model Poisoning', 'LLM05': 'Improper Output Handling',
+      'LLM06': 'Excessive Agency', 'LLM07': 'System Prompt Leakage', 'LLM08': 'Vector and Embedding Weaknesses', 'LLM09': 'Misinformation', 'LLM10': 'Unbounded Consumption',
+      // OWASP Top 10 for Agentic Applications 2025 (titles transcribed by hand, verify against the published list)
+      'ASI01': 'Agent Goal Hijack', 'ASI02': 'Tool Misuse and Exploitation', 'ASI03': 'Identity and Privilege Abuse', 'ASI04': 'Agentic Supply Chain Vulnerabilities', 'ASI05': 'Unexpected Code Execution',
+      'ASI06': 'Memory and Context Poisoning', 'ASI07': 'Insecure Inter-Agent Communication', 'ASI08': 'Cascading Failures', 'ASI09': 'Human-Agent Trust Exploitation', 'ASI10': 'Rogue Agents',
+      // MITRE ATLAS techniques (drawer only; IDs transcribed by hand, verify against atlas.mitre.org)
+      'AML.T0040': 'AI Model Inference API Access', 'AML.T0051': 'LLM Prompt Injection', 'AML.T0053': 'LLM Plugin Compromise', 'AML.T0054': 'LLM Jailbreak',
+      'AML.T0055': 'Unsecured Credentials', 'AML.T0057': 'LLM Data Leakage',
+    };
+
+    const FRAMEWORKS = {
+      mcsb: { key: 'mcsb', label: 'MCSB', long: 'Microsoft cloud security benchmark' },
+      cisAzure: { key: 'cisAzure', label: 'CIS Azure v3.0', long: 'CIS Microsoft Azure Foundations Benchmark v3.0' },
+      cisM365: { key: 'cisM365', label: 'CIS M365 v4', long: 'CIS Microsoft 365 Foundations Benchmark v4' },
+      // Threat taxonomies: mapped and filterable like the benchmarks, but shown as coverage of their 10 categories, never as a pass percentage.
+      owaspLlm: { key: 'owaspLlm', label: 'OWASP LLM', long: 'OWASP Top 10 for LLM Applications 2025', taxonomy: true, ids: ['LLM01', 'LLM02', 'LLM03', 'LLM04', 'LLM05', 'LLM06', 'LLM07', 'LLM08', 'LLM09', 'LLM10'] },
+      owaspAgentic: { key: 'owaspAgentic', label: 'OWASP Agentic', long: 'OWASP Top 10 for Agentic Applications 2025', taxonomy: true, ids: ['ASI01', 'ASI02', 'ASI03', 'ASI04', 'ASI05', 'ASI06', 'ASI07', 'ASI08', 'ASI09', 'ASI10'] },
+    };
+    const BENCHMARKS = Object.values(FRAMEWORKS).filter(fw => !fw.taxonomy);
+    const TAXONOMIES = Object.values(FRAMEWORKS).filter(fw => fw.taxonomy);
+    const DOMAINS = { entra: 'Entra ID', azure: 'Azure resources', defender: 'Defender', ai: 'AI & Agents' };
+    const SEVERITIES = ['critical', 'high', 'medium', 'low'];
+    const SEV_RANK = { critical: 0, high: 1, medium: 2, low: 3 };
+    const SEV_WEIGHT = { critical: 4, high: 3, medium: 2, low: 1 };
+    const STATUS_LABEL = { fail: 'Fail', warn: 'Warn', pass: 'Pass' };
+    const TABS = [
+      { id: 'overview', label: 'Overview' },
+      { id: 'entra', label: 'Entra ID' },
+      { id: 'azure', label: 'Azure resources' },
+      { id: 'defender', label: 'Defender' },
+      { id: 'ai', label: 'AI & Agents' },
+      { id: 'compliance', label: 'Compliance mapping' },
+    ];
+
+    /* =========================================================
+       STATE
+       ========================================================= */
+    const state = {
+      tab: 'overview',
+      filters: { domain: 'all', severities: new Set(SEVERITIES), status: 'all', framework: 'all', control: '', q: '' },
+      sort: { key: 'severity', dir: 'asc' },
+      cveSort: { key: 'exposedDevices', dir: 'desc' },
+      cveFilters: { exploitOnly: false, criticalOnly: false },
+      agentSort: { key: 'risk', dir: 'asc' },
+      complianceFw: 'mcsb',
+      complianceView: 'finding',
+      drawerId: null,
+      drawerReturnEl: null,
+    };
+
+    /* =========================================================
+       HELPERS
+       ========================================================= */
+    const $ = (sel, root = document) => root.querySelector(sel);
+    function el(tag, attrs = {}, ...children) {
+      const node = document.createElement(tag);
+      for (const [k, v] of Object.entries(attrs)) {
+        if (v === null || v === undefined || v === false) continue;
+        if (k === 'class') node.className = v;
+        else if (k === 'text') node.textContent = v;
+        else if (k.startsWith('on') && typeof v === 'function') node.addEventListener(k.slice(2), v);
+        else if (k === 'dataset') Object.assign(node.dataset, v);
+        else node.setAttribute(k, v === true ? '' : v);
+      }
+      for (const c of children.flat(Infinity)) {
+        if (c === null || c === undefined || c === false) continue;
+        node.append(c instanceof Node ? c : document.createTextNode(String(c)));
+      }
+      return node;
+    }
+    function svg(tag, attrs = {}, ...children) {
+      const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+      for (const [k, v] of Object.entries(attrs)) {
+        if (v === null || v === undefined || v === false) continue;
+        if (k === 'text') node.textContent = v;
+        else if (k === 'dataset') Object.assign(node.dataset, v);
+        else node.setAttribute(k, v);
+      }
+      for (const c of children.flat(Infinity)) if (c) node.append(c);
+      return node;
+    }
+    const fmt = n => Number(n).toLocaleString('en-US');
+    const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
+    const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+    function dot(kind, label) { return el('span', { class: 'status' }, el('span', { class: 'dot ' + kind, 'aria-hidden': 'true' }), label); }
+    function naturalCompare(a, b) {
+      const pa = String(a).split(/[.-]/), pb = String(b).split(/[.-]/);
+      for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+        const x = pa[i], y = pb[i];
+        if (x === undefined) return -1;
+        if (y === undefined) return 1;
+        const nx = Number(x), ny = Number(y);
+        if (!Number.isNaN(nx) && !Number.isNaN(ny)) { if (nx !== ny) return nx - ny; }
+        else if (x !== y) return x < y ? -1 : 1;
+      }
+      return 0;
+    }
+    function tableFromRows(columns, rows, caption) {
+      // columns: [{key, label, num}] ; rows: objects
+      return el('table', {},
+        caption ? el('caption', { text: caption }) : null,
+        el('thead', {}, el('tr', {}, columns.map(c => el('th', { scope: 'col', class: c.num ? 'num' : null, text: c.label })))),
+        el('tbody', {}, rows.map(r => el('tr', {}, columns.map(c => el('td', { class: c.num ? 'num' : null, text: c.num ? fmt(r[c.key]) : r[c.key] }))))));
+    }
+    function showTable(columns, rows, caption) {
+      return el('details', { class: 'tbl-details' }, el('summary', { text: 'Show table' }), el('div', { class: 'tbl-wrap' }, tableFromRows(columns, rows, caption)));
+    }
+
+    /* =========================================================
+       DERIVED DATA
+       ========================================================= */
+    function matchesControl(f, framework, control) {
+      const q = control.trim().toLowerCase();
+      if (!q) return true;
+      const keys = framework === 'all' ? Object.keys(FRAMEWORKS) : [framework];
+      return keys.some(k => f[k].some(id => id.toLowerCase().startsWith(q)));
+    }
+    function applyFilters(findings, { ignoreDomain = false } = {}) {
+      const F = state.filters;
+      const q = F.q.trim().toLowerCase();
+      return findings.filter(f => {
+        if (!ignoreDomain && F.domain !== 'all' && f.domain !== F.domain) return false;
+        if (!F.severities.has(f.severity)) return false;
+        if (F.status === 'open' ? f.status === 'pass' : (F.status !== 'all' && f.status !== F.status)) return false;
+        if (F.framework !== 'all' && !F.control.trim() && f[F.framework].length === 0) return false;
+        if (!matchesControl(f, F.framework, F.control)) return false;
+        if (q && ![f.id, f.title, f.description, f.category, f.source, f.scope].join(' ').toLowerCase().includes(q)) return false;
+        return true;
+      });
+    }
+    function summarize(findings) {
+      const s = {};
+      for (const d of Object.keys(DOMAINS)) {
+        s[d] = { fail: 0, warn: 0, pass: 0, open: 0, bySev: { critical: 0, high: 0, medium: 0, low: 0 }, top: null };
+      }
+      for (const f of findings) {
+        const d = s[f.domain];
+        d[f.status]++;
+        if (f.status !== 'pass') {
+          d.open++;
+          d.bySev[f.severity]++;
+          if (!d.top || sortOpen(f, d.top) < 0) d.top = f;
+        }
+      }
+      return s;
+    }
+    function sortOpen(a, b) { return SEV_RANK[a.severity] - SEV_RANK[b.severity] || b.affected - a.affected; }
+    // Findings score: 100 - weighted open findings / weighted total. Weights critical 4, high 3, medium 2, low 1; warn counts half.
+    function findingsScore(findings) {
+      let open = 0, total = 0;
+      for (const f of findings) {
+        const w = SEV_WEIGHT[f.severity];
+        total += w;
+        if (f.status === 'fail') open += w;
+        else if (f.status === 'warn') open += w / 2;
+      }
+      return total ? Math.round(100 - (open / total) * 100) : 100;
+    }
+    // Overall posture: equal-weight composite of the findings score, Defender for Cloud secure score % and Microsoft Secure Score %.
+    function postureScore(findings) {
+      const dfc = SECURE_SCORE.defenderForCloud, m365 = SECURE_SCORE.microsoft365;
+      return Math.round((findingsScore(findings) + pct(dfc.current, dfc.max) + pct(m365.current, m365.max)) / 3);
+    }
+    function rollup(frameworkKey, findings) {
+      const controls = new Map();
+      for (const f of findings) {
+        for (const id of f[frameworkKey]) {
+          if (!controls.has(id)) controls.set(id, { id, findings: [], state: 'pass', worst: 'low' });
+          const c = controls.get(id);
+          c.findings.push(f);
+          if (f.status === 'fail') c.state = 'fail';
+          else if (f.status === 'warn' && c.state !== 'fail') c.state = 'warn';
+          if (f.status !== 'pass' && SEV_RANK[f.severity] < SEV_RANK[c.worst]) c.worst = f.severity;
+        }
+      }
+      const list = [...controls.values()].sort((a, b) => naturalCompare(a.id, b.id));
+      const passed = list.filter(c => c.state === 'pass').length;
+      const warned = list.filter(c => c.state === 'warn').length;
+      return { controls: list, passed, warned, failed: list.length - passed - warned, total: list.length, pct: pct(passed, list.length) };
+    }
+
+    /* =========================================================
+       CHART RENDERERS (inline SVG, no libraries)
+       ========================================================= */
+    function tip(node, label, value, extra) {
+      node.dataset.tipLabel = label;
+      node.dataset.tipValue = value;
+      if (extra) node.dataset.tipExtra = extra;
+      node.setAttribute('tabindex', '0');
+      node.setAttribute('role', 'img');
+      node.setAttribute('aria-label', `${label}: ${value}${extra ? ', ' + extra : ''}`);
+      return node;
+    }
+    // Horizontal bars, one series. rows: [{label, value, color?}]
+    function renderBarChart(rows, { color = 'var(--seq-3)', title = '' } = {}) {
+      const W = 360, labelW = 130, barH = 14, gap = 8, top = 4;
+      const H = top + rows.length * (barH + gap);
+      const max = Math.max(1, ...rows.map(r => r.value));
+      const plotW = W - labelW - 44;
+      const s = svg('svg', { class: 'chart', viewBox: `0 0 ${W} ${H}`, style: `max-width:${W}px`, role: 'group', 'aria-label': title });
+      s.append(svg('line', { x1: labelW, y1: 0, x2: labelW, y2: H - gap, stroke: 'var(--grid)', 'stroke-width': 1 }));
+      rows.forEach((r, i) => {
+        const y = top + i * (barH + gap);
+        const w = Math.max(r.value > 0 ? 3 : 0, (r.value / max) * plotW);
+        s.append(svg('text', { x: labelW - 6, y: y + barH - 3, 'text-anchor': 'end', class: 'muted', text: r.label }));
+        const rect = svg('rect', { class: 'mark', x: labelW, y, width: w, height: barH, rx: 2, fill: r.color || color });
+        tip(rect, r.label, fmt(r.value));
+        rect.append(svg('title', { text: `${r.label}: ${fmt(r.value)}` }));
+        s.append(rect);
+        s.append(svg('text', { x: labelW + w + 5, y: y + barH - 3, text: fmt(r.value) }));
+      });
+      return s;
+    }
+    // Grouped horizontal bars: groups [{label, values:[{series, value, color}]}]
+    function renderGroupedBars(groups, series, title) {
+      const W = 560, labelW = 70, barH = 12, inner = 2, groupGap = 14, top = 4;
+      const n = series.length;
+      const groupH = n * barH + (n - 1) * inner;
+      const H = top + groups.length * (groupH + groupGap);
+      const max = Math.max(1, ...groups.flatMap(g => g.values.map(v => v.value)));
+      const plotW = W - labelW - 36;
+      const s = svg('svg', { class: 'chart', viewBox: `0 0 ${W} ${H}`, style: `max-width:${W}px`, role: 'group', 'aria-label': title });
+      s.append(svg('line', { x1: labelW, y1: 0, x2: labelW, y2: H - groupGap, stroke: 'var(--grid)', 'stroke-width': 1 }));
+      groups.forEach((g, gi) => {
+        const y0 = top + gi * (groupH + groupGap);
+        s.append(svg('text', { x: labelW - 6, y: y0 + groupH / 2 + 4, 'text-anchor': 'end', class: 'muted', text: g.label }));
+        g.values.forEach((v, si) => {
+          const y = y0 + si * (barH + inner);
+          const w = Math.max(v.value > 0 ? 3 : 0, (v.value / max) * plotW);
+          const rect = svg('rect', { class: 'mark', x: labelW, y, width: w, height: barH, rx: 2, fill: v.color });
+          tip(rect, `${g.label} - ${v.series}`, fmt(v.value));
+          rect.append(svg('title', { text: `${g.label}, ${v.series}: ${fmt(v.value)}` }));
+          s.append(rect);
+          if (v.value > 0) s.append(svg('text', { x: labelW + w + 4, y: y + barH - 1, text: fmt(v.value), style: 'font-size:9.5px' }));
+        });
+      });
+      return s;
+    }
+    // Stacked horizontal bars: rows [{label, values:{segKey: n}}], segs [{key, label, color}]. 2px gap between segments, total at the end.
+    function renderStackedBars(rows, segs, title) {
+      const W = 360, labelW = 130, barH = 14, gap = 8, top = 4, gapX = 2;
+      const H = top + rows.length * (barH + gap);
+      const sum = r => segs.reduce((a, sg) => a + (r.values[sg.key] || 0), 0);
+      const max = Math.max(1, ...rows.map(sum));
+      const plotW = W - labelW - 44;
+      const s = svg('svg', { class: 'chart', viewBox: `0 0 ${W} ${H}`, style: `max-width:${W}px`, role: 'group', 'aria-label': title });
+      s.append(svg('line', { x1: labelW, y1: 0, x2: labelW, y2: H - gap, stroke: 'var(--grid)', 'stroke-width': 1 }));
+      rows.forEach((r, i) => {
+        const y = top + i * (barH + gap);
+        s.append(svg('text', { x: labelW - 6, y: y + barH - 3, 'text-anchor': 'end', class: 'muted', text: r.label }));
+        let x = labelW;
+        for (const sg of segs) {
+          const v = r.values[sg.key] || 0;
+          if (!v) continue;
+          const span = (v / max) * plotW;
+          const rect = svg('rect', { class: 'mark', x, y, width: Math.max(3, span - gapX), height: barH, rx: 2, fill: sg.color });
+          tip(rect, `${r.label} - ${sg.label}`, fmt(v));
+          rect.append(svg('title', { text: `${r.label}, ${sg.label}: ${fmt(v)}` }));
+          s.append(rect);
+          x += span;
+        }
+        s.append(svg('text', { x: x + 5, y: y + barH - 3, text: fmt(sum(r)) }));
+      });
+      return s;
+    }
+    function renderLegend(items) {
+      return el('div', { class: 'legend', role: 'list' }, items.map(i => el('span', { role: 'listitem' }, el('span', { class: 'sw', style: `background:${i.color}`, 'aria-hidden': 'true' }), i.label)));
+    }
+    function renderStack(bySev) {
+      const total = SEVERITIES.reduce((a, s) => a + bySev[s], 0);
+      const bar = el('div', { class: 'stack', role: 'img', 'aria-label': SEVERITIES.map(s => `${s} ${bySev[s]}`).join(', ') });
+      if (!total) return bar;
+      for (const s of SEVERITIES) if (bySev[s] > 0) {
+        const seg = el('div', { class: s, style: `flex:${bySev[s]} 1 0` });
+        tip(seg, cap(s), fmt(bySev[s]), 'open findings');
+        seg.removeAttribute('tabindex');
+        bar.append(seg);
+      }
+      return bar;
+    }
+    function renderArc(value, max, label, sub) {
+      const r = 42, C = 2 * Math.PI * r, arcLen = C * 0.75, ratio = max ? value / max : 0;
+      const s = svg('svg', { viewBox: '0 0 100 100', role: 'img', 'aria-label': `${label}: ${value} of ${max}, ${Math.round(ratio * 100)} percent` });
+      const common = { cx: 50, cy: 50, r, fill: 'none', 'stroke-width': 9, 'stroke-linecap': 'round', transform: 'rotate(135 50 50)' };
+      s.append(svg('circle', { ...common, stroke: 'var(--grid)', 'stroke-dasharray': `${arcLen} ${C}` }));
+      s.append(svg('circle', { ...common, stroke: 'var(--accent)', 'stroke-dasharray': `${arcLen * ratio} ${C}` }));
+      s.append(svg('text', { x: 50, y: 56, 'text-anchor': 'middle', style: 'font-size:22px;font-weight:700', text: `${Math.round(ratio * 100)}%` }));
+      return el('div', { class: 'arc-wrap' }, s, el('div', { class: 'arc-text' }, el('strong', { text: `${fmt(value)} / ${fmt(max)}` }), label, sub ? el('div', { text: sub }) : null));
+    }
+    function renderMeterRow(label, value, max, { tone = 'accent', valueText } = {}) {
+      const p = pct(value, max);
+      const fill = el('div', { class: tone === 'accent' ? '' : tone, style: `width:${p}%` });
+      const row = el('div', { class: 'meter-row' },
+        el('span', { text: label }),
+        el('span', { class: 'val', text: valueText || `${fmt(value)} / ${fmt(max)} (${p}%)` }),
+        el('div', { class: 'meter', role: 'img', 'aria-label': `${label}: ${value} of ${max}` }, fill));
+      return row;
+    }
+    function toneFor(p) { return p >= 75 ? 'good' : p >= 40 ? 'warnfill' : 'bad'; }
+
+    /* =========================================================
+       TOOLTIP (single element, delegated)
+       ========================================================= */
+    const tooltip = $('#tooltip');
+    function showTip(target, x, y) {
+      tooltip.replaceChildren(el('strong', { text: target.dataset.tipValue }), ' ', el('span', { text: target.dataset.tipLabel }));
+      if (target.dataset.tipExtra) tooltip.append(el('div', { text: target.dataset.tipExtra }));
+      tooltip.hidden = false;
+      positionTip(x, y);
+    }
+    function positionTip(x, y) {
+      const pad = 12, rect = tooltip.getBoundingClientRect();
+      let left = x + pad, top = y + pad;
+      if (left + rect.width > window.innerWidth - 8) left = x - rect.width - pad;
+      if (top + rect.height > window.innerHeight - 8) top = y - rect.height - pad;
+      tooltip.style.left = `${Math.max(4, left)}px`;
+      tooltip.style.top = `${Math.max(4, top)}px`;
+    }
+    document.addEventListener('mousemove', e => {
+      const t = e.target.closest ? e.target.closest('[data-tip-label]') : null;
+      if (t) showTip(t, e.clientX, e.clientY); else if (!tooltip.hidden && !document.activeElement?.dataset?.tipLabel) tooltip.hidden = true;
+    });
+    document.addEventListener('focusin', e => {
+      const t = e.target.closest('[data-tip-label]');
+      if (t) { const r = t.getBoundingClientRect(); showTip(t, r.left + r.width / 2, r.top + r.height / 2); }
+    });
+    document.addEventListener('focusout', () => { tooltip.hidden = true; });
+
+    /* =========================================================
+       RENDER: shell
+       ========================================================= */
+    const panelsEl = $('#panels');
+    const tabsEl = $('#tabs');
+    function buildTabs() {
+      tabsEl.replaceChildren(...TABS.map(t => el('button', {
+        type: 'button', role: 'tab', id: `tab-${t.id}`, 'aria-controls': `panel-${t.id}`, 'aria-selected': String(state.tab === t.id),
+        tabindex: state.tab === t.id ? '0' : '-1', text: t.label,
+        onclick: () => setTab(t.id),
+        onkeydown: e => {
+          if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+          const i = TABS.findIndex(x => x.id === state.tab);
+          const next = TABS[(i + (e.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length];
+          setTab(next.id); $(`#tab-${next.id}`).focus(); e.preventDefault();
+        },
+      })));
+    }
+    function setTab(id) {
+      state.tab = id;
+      if (location.hash !== '#' + id) history.replaceState(null, '', '#' + id);
+      render();
+    }
+    function buildSeverityChips() {
+      $('#f-severity').replaceChildren(...SEVERITIES.map(s => el('button', {
+        type: 'button', class: 'chip', 'aria-pressed': String(state.filters.severities.has(s)),
+        onclick: () => { const set = state.filters.severities; set.has(s) ? set.delete(s) : set.add(s); render(); },
+      }, el('span', { class: 'dot ' + s, 'aria-hidden': 'true' }), cap(s))));
+    }
+
+    function render() {
+      buildTabs();
+      buildSeverityChips();
+      $('#f-domain').value = state.filters.domain;
+      $('#f-status').value = state.filters.status;
+      $('#f-framework').value = state.filters.framework;
+      if ($('#f-control').value !== state.filters.control) $('#f-control').value = state.filters.control;
+      if ($('#f-search').value !== state.filters.q) $('#f-search').value = state.filters.q;
+
+      const all = applyFilters(FINDINGS);
+      $('#result-count').textContent = `Showing ${all.length} of ${FINDINGS.length} findings`;
+      $('#posture').textContent = postureScore(FINDINGS);
+      $('#posture-sub').textContent = `Findings ${findingsScore(FINDINGS)} · Defender for Cloud ${pct(SECURE_SCORE.defenderForCloud.current, SECURE_SCORE.defenderForCloud.max)} · Microsoft Secure Score ${pct(SECURE_SCORE.microsoft365.current, SECURE_SCORE.microsoft365.max)}`;
+      $('#assessed').textContent = `Assessed ${ASSESSED}`;
+
+      const panel = el('section', { id: `panel-${state.tab}`, role: 'tabpanel', 'aria-labelledby': `tab-${state.tab}` });
+      if (state.tab === 'overview') renderOverview(panel, all);
+      else if (state.tab === 'compliance') renderCompliance(panel, all);
+      else renderDomainTab(panel, state.tab);
+      panelsEl.replaceChildren(panel);
+    }
+
+    /* =========================================================
+       RENDER: Overview
+       ========================================================= */
+    function renderOverview(panel, findings) {
+      const sum = summarize(findings);
+      const cards = el('div', { class: 'grid' });
+      for (const [d, label] of Object.entries(DOMAINS)) {
+        const s = sum[d];
+        cards.append(el('article', {
+          class: `card clickable domain-${d}`, tabindex: '0', role: 'button', 'aria-label': `${label}: ${s.open} open findings. Open ${label} tab.`,
+          onclick: () => { state.filters.domain = 'all'; setTab(d); },
+          onkeydown: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); state.filters.domain = 'all'; setTab(d); } },
+        },
+          el('h3', {}, el('span', { class: 'dot ' + d, 'aria-hidden': 'true' }), label),
+          el('div', { class: 'counts' },
+            el('div', {}, el('span', { text: 'Fail' }), el('span', { text: s.fail })),
+            el('div', {}, el('span', { text: 'Warn' }), el('span', { text: s.warn })),
+            el('div', {}, el('span', { text: 'Pass' }), el('span', { text: s.pass }))),
+          renderStack(s.bySev),
+          el('p', { class: 'note' }, s.top ? ['Top finding: ', el('strong', { text: s.top.title })] : 'No open findings in the current filter.')));
+      }
+      panel.append(cards);
+
+      const rows = el('div', { class: 'grid' });
+      const dfc = SECURE_SCORE.defenderForCloud, m365 = SECURE_SCORE.microsoft365;
+      rows.append(el('article', { class: 'card' }, el('h3', { text: dfc.label }), renderArc(dfc.current, dfc.max, 'points', 'Azure subscriptions')));
+      rows.append(el('article', { class: 'card' }, el('h3', { text: m365.label }), renderArc(m365.current, m365.max, 'points', 'Microsoft 365 tenant')));
+
+      const fwCard = el('article', { class: 'card' }, el('h3', {}, 'Framework rollup', el('span', { class: 'sub', text: 'Controls passing, of controls referenced by findings' })));
+      for (const fw of BENCHMARKS) {
+        const r = rollup(fw.key, findings);
+        fwCard.append(renderMeterRow(fw.label, r.passed, r.total, { tone: toneFor(r.pct), valueText: `${r.passed} / ${r.total} passing (${r.pct}%)` }));
+      }
+      fwCard.append(el('p', { class: 'note', text: 'A control fails if any mapped finding fails. Only controls referenced by at least one finding are counted.' }));
+      rows.append(fwCard);
+      panel.append(rows);
+
+      const bottom = el('div', { class: 'grid' });
+      const groups = SEVERITIES.map(s => ({ label: cap(s), values: Object.keys(DOMAINS).map(d => ({ series: DOMAINS[d], value: findings.filter(f => f.domain === d && f.severity === s && f.status !== 'pass').length, color: `var(--${d})` })) }));
+      const chartCard = el('article', { class: 'card span-2' },
+        el('h3', {}, 'Open findings by severity and domain', el('span', { class: 'sub', text: 'Fail and warn findings in the current filter' })),
+        renderLegend(Object.keys(DOMAINS).map(d => ({ label: DOMAINS[d], color: `var(--${d})` }))),
+        renderGroupedBars(groups, Object.values(DOMAINS), 'Open findings by severity and domain'),
+        showTable([{ key: 'severity', label: 'Severity' }, ...Object.keys(DOMAINS).map(d => ({ key: d, label: DOMAINS[d], num: true }))],
+          groups.map(g => ({ severity: g.label, ...Object.fromEntries(Object.keys(DOMAINS).map((d, i) => [d, g.values[i].value])) }))));
+      bottom.append(chartCard);
+
+      const top = findings.filter(f => f.status !== 'pass').sort(sortOpen).slice(0, 8);
+      bottom.append(el('article', { class: 'card' }, el('h3', { text: 'Top open findings' }),
+        top.length ? el('ol', { class: 'toplist' }, top.map(f => el('li', {},
+          dot(f.severity, ''), el('button', { type: 'button', text: f.title, onclick: e => openDrawer(f.id, e.currentTarget) }),
+          el('span', { class: 'who', text: `${DOMAINS[f.domain]} · ${fmt(f.affected)} ${f.affectedUnit}` }))))
+          : el('p', { class: 'empty', text: 'No open findings match the current filters.' })));
+      panel.append(bottom);
+    }
+
+    /* =========================================================
+       RENDER: Domain tabs
+       ========================================================= */
+    function kpi(label, value, sub, subClass) {
+      return el('article', { class: 'card kpi' }, el('div', { class: 'label', text: label }), el('div', { class: 'value' }, value), sub ? el('div', { class: 'delta ' + (subClass || ''), text: sub }) : null);
+    }
+    function renderDomainTab(panel, domain) {
+      const findings = applyFilters(FINDINGS, { ignoreDomain: true }).filter(f => f.domain === domain);
+      const kpis = el('div', { class: 'grid kpis' });
+      if (domain === 'entra') {
+        const e = STATS.entra;
+        const cov = pct(e.mfaCapable, e.users);
+        kpis.append(el('article', { class: 'card kpi' }, el('div', { class: 'label', text: 'MFA-capable users' }), el('div', { class: 'value' }, `${cov}%`, el('small', { text: ` ${fmt(e.mfaCapable)} of ${fmt(e.users)}` })),
+          el('div', { class: 'meter', role: 'img', 'aria-label': `MFA coverage ${cov} percent` }, el('div', { class: toneFor(cov), style: `width:${cov}%` }))));
+        kpis.append(kpi('Global Administrators', fmt(e.globalAdmins), 'Target: 2 to 4', 'bad'));
+        kpis.append(kpi('Legacy auth sign-ins (30d)', fmt(e.legacySignIns30d), 'Successful, 41 users', 'bad'));
+        kpis.append(kpi('Guest accounts', fmt(e.guests), `${fmt(e.inactiveGuests)} inactive > 90 days`, 'bad'));
+        kpis.append(kpi('Permanent privileged assignments', fmt(e.permanentPrivileged), 'Outside PIM', 'bad'));
+        kpis.append(kpi('Users at risk', fmt(e.riskyUsers), `${e.caReportOnly} of ${e.caPolicies} CA policies report-only`, 'bad'));
+      } else if (domain === 'azure') {
+        const dfc = SECURE_SCORE.defenderForCloud;
+        kpis.append(kpi('Defender for Cloud secure score', `${pct(dfc.current, dfc.max)}%`, `${dfc.current} of ${dfc.max} points`));
+        kpis.append(kpi('Open recommendations', fmt(findings.filter(f => f.status !== 'pass').length), 'In current filter'));
+        kpis.append(kpi('Affected resources', fmt(findings.filter(f => f.status !== 'pass').reduce((a, f) => a + f.affected, 0)), 'Sum across open findings'));
+        kpis.append(kpi('Subscriptions', '5', '2 without Activity log export', 'bad'));
+      } else if (domain === 'defender') {
+        const d = STATS.defender;
+        kpis.append(kpi('Devices exposed to critical CVEs', fmt(d.exposedCritical), `of ${fmt(d.onboardedDevices)} onboarded`, 'bad'));
+        kpis.append(kpi('Exploitable critical CVEs', fmt(CVES.filter(c => c.cvss >= 9 && c.exploitAvailable).length), 'CVSS 9+ with public exploit', 'bad'));
+        kpis.append(kpi('Missing updates > 30 days', fmt(d.missingUpdates30d), 'devices', 'bad'));
+        kpis.append(kpi('High incidents unassigned', fmt(d.openHighIncidents), 'Open > 7 days', 'bad'));
+        kpis.append(kpi('MDE onboarding gap', fmt(d.mdeOnboardingGap), 'servers without sensor', 'bad'));
+        kpis.append(kpi('Alerts (7d)', fmt(d.alerts7d), 'Across Defender products'));
+      } else if (domain === 'ai') {
+        const a = STATS.ai;
+        const meterKpi = (label, value, max, sub, tone) => {
+          const p = pct(value, max);
+          return el('article', { class: 'card kpi' }, el('div', { class: 'label', text: label }),
+            el('div', { class: 'value' }, fmt(value), el('small', { text: ` of ${fmt(max)} (${p}%)` })),
+            el('div', { class: 'meter', role: 'img', 'aria-label': `${label}: ${value} of ${max}` }, el('div', { class: tone, style: `width:${p}%` })),
+            sub ? el('div', { class: 'delta', text: sub }) : null);
+        };
+        kpis.append(meterKpi('AI accounts with public network access', a.publicNetworkAccounts, a.aiAccounts, 'Azure OpenAI and AI Services accounts', 'bad'));
+        kpis.append(meterKpi('AI accounts with key auth enabled', a.keyAuthAccounts, a.aiAccounts, 'disableLocalAuth not set', 'bad'));
+        kpis.append(meterKpi('Defender for AI services coverage', a.defenderAiSubscriptions, a.subscriptions, 'Subscriptions with the plan on', toneFor(pct(a.defenderAiSubscriptions, a.subscriptions))));
+        kpis.append(kpi('Copilot Studio agents shared org-wide', fmt(a.agentsSharedOrgWide), `of ${a.copilotStudioAgents} agents`, 'bad'));
+        kpis.append(kpi('Agent identities without owner', fmt(a.agentIdentitiesNoOwner), `of ${a.agentIdentities} Entra agent identities`, 'bad'));
+        kpis.append(kpi('Jailbreak attempts (30d)', fmt(a.promptAttacks30d), `${a.promptAttacksBlocked} blocked, ${a.promptAttacks30d - a.promptAttacksBlocked} detected only`, 'bad'));
+        kpis.append(kpi('Sensitive prompts detected (30d)', fmt(a.sensitivePrompts30d), 'Copilot and third-party AI, via Purview', 'bad'));
+        kpis.append(kpi('Unsanctioned gen-AI apps', fmt(a.genAiAppsUnsanctioned), `of ${a.genAiApps} discovered`, 'bad'));
+      }
+      panel.append(kpis);
+
+      const mid = el('div', { class: 'grid' });
+      const byCat = {};
+      for (const f of findings) if (f.status !== 'pass') byCat[f.category] = (byCat[f.category] || 0) + (domain === 'azure' ? f.affected : 1);
+      const catRows = Object.entries(byCat).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
+      const catTitle = domain === 'azure' ? 'Unhealthy resources by resource type' : 'Open findings by category';
+      mid.append(el('article', { class: 'card' }, el('h3', {}, catTitle, el('span', { class: 'sub', text: domain === 'azure' ? 'Affected resources per open recommendation category' : 'Fail and warn findings' })),
+        catRows.length ? renderBarChart(catRows, { color: `var(--${domain})`, title: catTitle }) : el('p', { class: 'empty', text: 'Nothing open in the current filter.' }),
+        showTable([{ key: 'label', label: 'Category' }, { key: 'value', label: domain === 'azure' ? 'Resources' : 'Findings', num: true }], catRows)));
+
+      if (domain === 'azure') {
+        const c = el('article', { class: 'card' }, el('h3', {}, 'Defender for Cloud security controls', el('span', { class: 'sub', text: 'Score earned per control' })));
+        for (const ctl of SECURE_SCORE.defenderForCloud.controls) c.append(renderMeterRow(ctl.name, ctl.current, ctl.max, { tone: toneFor(pct(ctl.current, ctl.max)), valueText: `${ctl.current}/${ctl.max} · ${fmt(ctl.unhealthy)} unhealthy` }));
+        mid.append(c);
+      } else if (domain === 'defender') {
+        const m = SECURE_SCORE.microsoft365;
+        const c = el('article', { class: 'card' }, el('h3', {}, m.label + ' by category', el('span', { class: 'sub', text: `${m.current} of ${m.max} points` })));
+        for (const cat of m.categories) c.append(renderMeterRow(cat.name, cat.current, cat.max, { tone: toneFor(pct(cat.current, cat.max)) }));
+        mid.append(c);
+      } else if (domain === 'ai') {
+        // Segments are risk levels, so the reserved severity colors are the right encoding here.
+        const segs = [{ key: 'high', label: 'High risk', color: 'var(--sev-high)' }, { key: 'medium', label: 'Medium risk', color: 'var(--sev-medium)' }, { key: 'low', label: 'Low risk', color: 'var(--sev-low)' }];
+        const total = AGENT_PLATFORMS.reduce((a, p) => a + p.high + p.medium + p.low, 0);
+        mid.append(el('article', { class: 'card' }, el('h3', {}, 'Agent inventory by platform and risk', el('span', { class: 'sub', text: `${fmt(total)} agent identities. Risk rating from sharing scope, auth mode, connectors and permissions` })),
+          renderLegend(segs),
+          renderStackedBars(AGENT_PLATFORMS.map(p => ({ label: p.platform, values: p })), segs, 'Agent inventory by platform and risk'),
+          showTable([{ key: 'platform', label: 'Platform' }, { key: 'high', label: 'High', num: true }, { key: 'medium', label: 'Medium', num: true }, { key: 'low', label: 'Low', num: true }], AGENT_PLATFORMS)));
+      } else {
+        const e = STATS.entra;
+        const c = el('article', { class: 'card' }, el('h3', {}, 'Identity coverage', el('span', { class: 'sub', text: 'Share of population meeting the control' })));
+        c.append(renderMeterRow('Users MFA-capable', e.mfaCapable, e.users, { tone: toneFor(pct(e.mfaCapable, e.users)) }));
+        c.append(renderMeterRow('Admins on phishing-resistant MFA', 16, 23, { tone: toneFor(pct(16, 23)) }));
+        c.append(renderMeterRow('Privileged assignments via PIM', 23 - e.permanentPrivileged, 23, { tone: toneFor(pct(23 - e.permanentPrivileged, 23)) }));
+        c.append(renderMeterRow('Guests active in last 90 days', e.guests - e.inactiveGuests, e.guests, { tone: toneFor(pct(e.guests - e.inactiveGuests, e.guests)) }));
+        c.append(renderMeterRow('Conditional Access policies enforced', e.caPolicies - e.caReportOnly, e.caPolicies, { tone: toneFor(pct(e.caPolicies - e.caReportOnly, e.caPolicies)) }));
+        mid.append(c);
+      }
+      panel.append(mid);
+
+      if (domain === 'defender') panel.append(el('div', { class: 'grid' }, renderCveCard()));
+      if (domain === 'ai') {
+        panel.append(el('div', { class: 'grid' }, renderAiAlertsCard(), renderOwaspCoverageCard(findings, { compact: true })));
+        panel.append(el('div', { class: 'grid' }, renderAgentsCard()));
+      }
+
+      panel.append(el('article', { class: 'card' }, el('h3', {}, `${DOMAINS[domain]} findings`, el('span', { class: 'sub', text: 'Click a row for details and remediation' })), renderFindingsTable(findings, { domain })));
+    }
+
+    /* =========================================================
+       RENDER: CVE table
+       ========================================================= */
+    function renderCveCard() {
+      const cf = state.cveFilters;
+      let rows = CVES.filter(c => (!cf.exploitOnly || c.exploitAvailable) && (!cf.criticalOnly || c.cvss >= 9));
+      const { key, dir } = state.cveSort;
+      rows = rows.slice().sort((a, b) => {
+        let r = typeof a[key] === 'number' ? a[key] - b[key] : typeof a[key] === 'boolean' ? Number(a[key]) - Number(b[key]) : String(a[key]).localeCompare(String(b[key]));
+        return dir === 'asc' ? r : -r;
+      });
+      const cols = [
+        { key: 'cve', label: 'CVE' }, { key: 'cvss', label: 'CVSS', num: true }, { key: 'severity', label: 'Severity' },
+        { key: 'exploitAvailable', label: 'Exploit' }, { key: 'exposedDevices', label: 'Exposed devices', num: true },
+        { key: 'software', label: 'Software' }, { key: 'vendor', label: 'Vendor' }, { key: 'published', label: 'Published' },
+      ];
+      const card = el('article', { class: 'card span-2' },
+        el('h3', {}, 'Defender Vulnerability Management: top CVEs', el('span', { class: 'sub', text: `${rows.length} of ${CVES.length} CVEs · ${fmt(rows.reduce((a, c) => a + c.exposedDevices, 0))} device exposures` })),
+        el('div', { class: 'chips', style: 'margin-bottom:.6rem' },
+          el('button', { type: 'button', class: 'chip', 'aria-pressed': String(cf.exploitOnly), text: 'Exploit available', onclick: () => { cf.exploitOnly = !cf.exploitOnly; render(); } }),
+          el('button', { type: 'button', class: 'chip', 'aria-pressed': String(cf.criticalOnly), text: 'CVSS ≥ 9', onclick: () => { cf.criticalOnly = !cf.criticalOnly; render(); } })));
+      const table = el('table', {}, el('caption', { text: 'Sortable. Exposed devices counts are distinct devices per CVE.' }),
+        el('thead', {}, el('tr', {}, cols.map(c => el('th', { scope: 'col', class: c.num ? 'num' : null, 'aria-sort': key === c.key ? (dir === 'asc' ? 'ascending' : 'descending') : 'none' },
+          el('button', { type: 'button', text: c.label, onclick: () => { state.cveSort = { key: c.key, dir: key === c.key && dir === 'desc' ? 'asc' : 'desc' }; render(); } }))))),
+        el('tbody', {}, rows.length ? rows.map(c => el('tr', {},
+          el('td', { text: c.cve }), el('td', { class: 'num', text: c.cvss.toFixed(1) }), el('td', {}, dot(c.severity, cap(c.severity))),
+          el('td', {}, c.exploitAvailable ? dot('fail', 'Yes') : dot('pass', 'No')), el('td', { class: 'num', text: fmt(c.exposedDevices) }),
+          el('td', { text: c.software }), el('td', { text: c.vendor }), el('td', { text: c.published })))
+          : el('tr', {}, el('td', { colspan: cols.length, class: 'empty', text: 'No CVEs match.' }))));
+      card.append(el('div', { class: 'tbl-wrap' }, table));
+      return card;
+    }
+
+    /* =========================================================
+       RENDER: AI & Agents cards
+       ========================================================= */
+    function renderAiAlertsCard() {
+      const rows = AI_ALERTS.slice().sort((a, b) => b.count - a.count).map(a => ({ label: a.type, detail: a.detail, severity: cap(a.severity), value: a.count }));
+      const total = AI_ALERTS.reduce((a, x) => a + x.count, 0);
+      return el('article', { class: 'card' },
+        el('h3', {}, 'Defender for AI services alerts (30d)', el('span', { class: 'sub', text: `${fmt(total)} alerts from the ${STATS.ai.defenderAiSubscriptions} subscriptions with the plan enabled` })),
+        renderBarChart(rows, { color: 'var(--ai)', title: 'Defender for AI services alerts by type' }),
+        showTable([{ key: 'detail', label: 'Alert' }, { key: 'severity', label: 'Severity' }, { key: 'value', label: 'Alerts', num: true }], rows));
+    }
+    // OWASP lists are threat taxonomies: report which of the 10 categories the findings touch and their state, never a pass percentage.
+    function coverage(fw, findings) {
+      const byId = new Map(rollup(fw.key, findings).controls.map(c => [c.id, c]));
+      const cells = fw.ids.map(id => ({ id, c: byId.get(id) || null }));
+      return { cells, assessed: cells.filter(x => x.c).length, failing: cells.filter(x => x.c && x.c.state === 'fail').length, total: fw.ids.length };
+    }
+    function renderCoverageStrip(fw, findings) {
+      const cov = coverage(fw, findings);
+      const strip = el('div', { class: 'cov', role: 'list', 'aria-label': `${fw.long} coverage` });
+      for (const { id, c } of cov.cells) {
+        const st = c ? c.state : 'na', word = c ? STATUS_LABEL[c.state] : 'Not assessed', name = CONTROL_NAMES[id] || '';
+        const n = c ? c.findings.length : 0;
+        strip.append(el('button', {
+          type: 'button', class: 'cov-cell ' + st, role: 'listitem', disabled: c ? null : true,
+          title: `${id} ${name}: ${word}${c ? ` (${n} finding${n === 1 ? '' : 's'})` : ''}`,
+          'aria-label': `${id} ${name}: ${word}${c ? `, ${n} findings. Filter by this category.` : '.'}`,
+          onclick: () => { state.filters.framework = fw.key; state.filters.control = id; render(); },
+        }, el('strong', { text: id }), el('small', { text: word })));
+      }
+      return el('div', {},
+        el('p', { class: 'note', style: 'margin:0 0 .4rem' }, el('strong', { text: fw.long }), `: ${cov.assessed} of ${cov.total} risk categories assessed, ${cov.failing} with open fails`),
+        strip);
+    }
+    function renderOwaspCoverageCard(findings, { compact = false } = {}) {
+      const card = el('article', { class: 'card', style: compact ? null : 'margin-bottom:1rem' },
+        el('h3', {}, 'AI threat coverage (OWASP)', el('span', { class: 'sub', text: 'Risk categories referenced by findings in the current filter. A passing cell means the mapped controls pass, not that the risk is absent.' })));
+      for (const fw of TAXONOMIES) card.append(renderCoverageStrip(fw, findings));
+      card.append(compact
+        ? el('p', { class: 'note' }, el('button', { type: 'button', class: 'btn-ghost', text: 'Open Compliance mapping', onclick: () => setTab('compliance') }))
+        : el('p', { class: 'note', text: 'OWASP Top 10 lists describe risk categories rather than controls, so they are shown as coverage and are excluded from the framework rollup percentages above. Click a cell to filter every tab by that category.' }));
+      return card;
+    }
+    function renderAgentsCard() {
+      const { key, dir } = state.agentSort;
+      const rows = AGENTS.slice().sort((a, b) => {
+        const r = key === 'risk' ? SEV_RANK[a.risk] - SEV_RANK[b.risk] : typeof a[key] === 'number' ? a[key] - b[key] : String(a[key]).localeCompare(String(b[key]));
+        return dir === 'asc' ? r : -r;
+      });
+      const cols = [
+        { key: 'name', label: 'Agent' }, { key: 'platform', label: 'Platform' }, { key: 'owner', label: 'Owner' }, { key: 'authMode', label: 'Auth mode' },
+        { key: 'connectors', label: 'Connectors', num: true }, { key: 'sharing', label: 'Sharing' }, { key: 'risk', label: 'Risk' }, { key: 'findingIds', label: 'Findings', nosort: true },
+      ];
+      const a = STATS.ai;
+      const table = el('table', {}, el('caption', { text: `Sortable. Sample of 10 agents out of ${a.agentIdentities} Entra agent identities across Copilot Studio, Foundry Agent Service and custom agents.` }),
+        el('thead', {}, el('tr', {}, cols.map(c => el('th', { scope: 'col', class: c.num ? 'num' : null, 'aria-sort': c.nosort ? null : key === c.key ? (dir === 'asc' ? 'ascending' : 'descending') : 'none' },
+          c.nosort ? c.label : el('button', { type: 'button', text: c.label, onclick: () => { state.agentSort = { key: c.key, dir: key === c.key && dir === 'asc' ? 'desc' : 'asc' }; render(); } }))))),
+        el('tbody', {}, rows.map(g => el('tr', {},
+          el('td', { class: 'title-cell', style: 'min-width:10rem', text: g.name }), el('td', { text: g.platform }), el('td', { text: g.owner }), el('td', { text: g.authMode }),
+          el('td', { class: 'num', text: fmt(g.connectors) }), el('td', { text: g.sharing }), el('td', {}, dot(g.risk, cap(g.risk))),
+          el('td', {}, g.findingIds.length ? g.findingIds.map(id => el('button', { type: 'button', class: 'id-chip', text: id, title: (FINDINGS.find(f => f.id === id) || {}).title || id, 'aria-label': `${id}: open details.`, onclick: e => openDrawer(id, e.currentTarget) })) : el('span', { class: 'note', style: 'margin:0', text: '—' }))))));
+      return el('article', { class: 'card span-2' },
+        el('h3', {}, 'Agent inventory', el('span', { class: 'sub', text: 'Owner, authentication, connector count and sharing scope drive the risk rating. Finding chips open the related detail.' })),
+        el('div', { class: 'tbl-wrap' }, table));
+    }
+
+    /* =========================================================
+       RENDER: Findings table
+       ========================================================= */
+    const FINDING_COLS = [
+      { key: 'id', label: 'ID' }, { key: 'title', label: 'Title' }, { key: 'category', label: 'Category' },
+      { key: 'severity', label: 'Severity' }, { key: 'status', label: 'Status' }, { key: 'affected', label: 'Affected', num: true },
+      { key: 'source', label: 'Source' }, { key: 'mcsb', label: 'MCSB' }, { key: 'cisAzure', label: 'CIS Azure' }, { key: 'cisM365', label: 'CIS M365' }, { key: 'detected', label: 'Detected' },
+    ];
+    function compareFindings(a, b, key) {
+      if (key === 'severity') return SEV_RANK[a.severity] - SEV_RANK[b.severity] || b.affected - a.affected;
+      if (key === 'status') return ['fail', 'warn', 'pass'].indexOf(a.status) - ['fail', 'warn', 'pass'].indexOf(b.status);
+      if (key === 'affected') return a.affected - b.affected;
+      if (key === 'aiFrameworks') return naturalCompare(a.owaspLlm[0] || a.owaspAgentic[0] || '~', b.owaspLlm[0] || b.owaspAgentic[0] || '~');
+      if (Array.isArray(a[key])) return naturalCompare(a[key][0] || '~', b[key][0] || '~');
+      return String(a[key]).localeCompare(String(b[key]));
+    }
+    function controlChips(ids, fwKey) {
+      if (!ids.length) return el('span', { class: 'note', style: 'margin:0', text: '—' });
+      return el('span', {}, ids.map(id => el('button', {
+        type: 'button', class: 'id-chip', title: CONTROL_NAMES[id] || id, 'aria-label': `${FRAMEWORKS[fwKey].label} ${id}: ${CONTROL_NAMES[id] || ''}. Filter by this control.`,
+        text: id, onclick: e => { e.stopPropagation(); state.filters.framework = fwKey; state.filters.control = id; render(); },
+      })));
+    }
+    function aiChips(f) {
+      if (!f.owaspLlm.length && !f.owaspAgentic.length) return el('span', { class: 'note', style: 'margin:0', text: '—' });
+      return el('span', {}, f.owaspLlm.length ? controlChips(f.owaspLlm, 'owaspLlm') : null, f.owaspAgentic.length ? controlChips(f.owaspAgentic, 'owaspAgentic') : null);
+    }
+    // Column sets: domain tabs show the 11 benchmark columns; the AI tab swaps the always-empty CIS Azure column for a combined
+    // "AI frameworks" column; the compliance cross-reference shows every mapping column plus Domain.
+    function renderFindingsTable(findings, { showDomain = false, domain = null } = {}) {
+      const { key, dir } = state.sort;
+      const rows = findings.slice().sort((a, b) => { const r = compareFindings(a, b, key); return dir === 'asc' ? r : -r; });
+      let cols = FINDING_COLS;
+      if (domain === 'ai') cols = FINDING_COLS.filter(c => c.key !== 'cisAzure').flatMap(c => c.key === 'cisM365' ? [c, { key: 'aiFrameworks', label: 'AI frameworks' }] : [c]);
+      if (showDomain) cols = [FINDING_COLS[0], { key: 'domain', label: 'Domain' }, ...FINDING_COLS.slice(1, -1), ...TAXONOMIES.map(fw => ({ key: fw.key, label: fw.label })), FINDING_COLS[FINDING_COLS.length - 1]];
+      const table = el('table', {},
+        el('thead', {}, el('tr', {}, cols.map(c => el('th', { scope: 'col', class: c.num ? 'num' : null, 'aria-sort': key === c.key ? (dir === 'asc' ? 'ascending' : 'descending') : 'none' },
+          el('button', { type: 'button', text: c.label, onclick: () => { state.sort = { key: c.key, dir: key === c.key && dir === 'asc' ? 'desc' : 'asc' }; render(); } }))))),
+        el('tbody', {}, rows.length ? rows.map(f => el('tr', {
+          class: 'row-btn', tabindex: '0', 'aria-label': `${f.id} ${f.title}. Open details.`,
+          onclick: e => openDrawer(f.id, e.currentTarget), onkeydown: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDrawer(f.id, e.currentTarget); } },
+        }, cols.map(c => {
+          if (c.key === 'severity') return el('td', {}, dot(f.severity, cap(f.severity)));
+          if (c.key === 'status') return el('td', {}, dot(f.status, STATUS_LABEL[f.status]));
+          if (c.key === 'affected') return el('td', { class: 'num', text: f.affected ? `${fmt(f.affected)} ${f.affectedUnit}` : '—' });
+          if (c.key === 'domain') return el('td', {}, dot(f.domain, DOMAINS[f.domain]));
+          if (c.key === 'title') return el('td', { class: 'title-cell', text: f.title });
+          if (c.key === 'id') return el('td', { class: 'id-cell', text: f.id });
+          if (c.key === 'aiFrameworks') return el('td', {}, aiChips(f));
+          if (FRAMEWORKS[c.key]) return el('td', {}, controlChips(f[c.key], c.key));
+          return el('td', { text: f[c.key] });
+        }))) : el('tr', {}, el('td', { colspan: cols.length, class: 'empty', text: 'No findings match the current filters.' }))));
+      return el('div', { class: 'tbl-wrap' }, table);
+    }
+
+    /* =========================================================
+       RENDER: Compliance mapping
+       ========================================================= */
+    function renderCompliance(panel, findings) {
+      const cards = el('div', { class: 'grid' });
+      for (const fw of BENCHMARKS) {
+        const r = rollup(fw.key, findings);
+        cards.append(el('article', { class: 'card kpi' },
+          el('div', { class: 'label', text: fw.long }),
+          el('div', { class: 'value' }, `${r.pct}%`, el('small', { text: ` ${r.passed} of ${r.total} controls passing` })),
+          el('div', { class: 'meter', role: 'img', 'aria-label': `${fw.label}: ${r.pct} percent passing` }, el('div', { class: toneFor(r.pct), style: `width:${r.pct}%` })),
+          el('div', { class: 'delta', text: `${r.failed} failing · ${r.warned} partial` })));
+      }
+      const s = DFC_CIS.summary, assessed = s.passed + s.failed;
+      cards.append(el('article', { class: 'card kpi' },
+        el('div', { class: 'label', text: `${DFC_CIS.standard} (as reported by Defender for Cloud)` }),
+        el('div', { class: 'value' }, `${pct(s.passed, assessed)}%`, el('small', { text: ` ${s.passed} of ${assessed} assessed passing` })),
+        el('div', { class: 'meter', role: 'img', 'aria-label': `Defender for Cloud CIS: ${pct(s.passed, assessed)} percent passing` }, el('div', { class: toneFor(pct(s.passed, assessed)), style: `width:${pct(s.passed, assessed)}%` })),
+        el('div', { class: 'delta', text: `${s.failed} failed · ${s.skipped} skipped · ${s.unsupported} unsupported` })));
+      panel.append(cards);
+      panel.append(renderOwaspCoverageCard(findings));
+
+      const card = el('article', { class: 'card' });
+      const seg = el('div', { class: 'seg', role: 'group', 'aria-label': 'View' },
+        el('button', { type: 'button', 'aria-pressed': String(state.complianceView === 'finding'), text: 'By finding', onclick: () => { state.complianceView = 'finding'; render(); } }),
+        el('button', { type: 'button', 'aria-pressed': String(state.complianceView === 'control'), text: 'By control', onclick: () => { state.complianceView = 'control'; render(); } }));
+      if (state.complianceView === 'finding') {
+        card.append(el('h3', {}, 'Cross-reference: findings to controls', el('span', { class: 'sub', text: 'Click a control chip to filter every tab by that control' })), seg);
+        card.append(renderFindingsTable(findings, { showDomain: true }));
+      } else {
+        const fwSeg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Framework', style: 'margin-left:.75rem' }, Object.values(FRAMEWORKS).map(fw =>
+          el('button', { type: 'button', 'aria-pressed': String(state.complianceFw === fw.key), text: fw.label, onclick: () => { state.complianceFw = fw.key; render(); } })));
+        const fw = FRAMEWORKS[state.complianceFw];
+        const r = rollup(fw.key, findings);
+        card.append(el('h3', {}, `Controls: ${fw.long}`, el('span', { class: 'sub', text: `${r.passed} passing, ${r.warned} partial, ${r.failed} failing of ${r.total} referenced controls` })), el('div', {}, seg, fwSeg));
+        const table = el('table', {},
+          el('thead', {}, el('tr', {}, ['Control', 'Title', 'State', 'Worst severity', 'Findings', 'Mapped findings'].map((h, i) => el('th', { scope: 'col', class: i === 4 ? 'num' : null, text: h })))),
+          el('tbody', {}, r.controls.length ? r.controls.map(c => el('tr', {},
+            el('td', { text: c.id }), el('td', { text: CONTROL_NAMES[c.id] || '' }), el('td', {}, dot(c.state, STATUS_LABEL[c.state])),
+            el('td', {}, c.state === 'pass' ? '—' : dot(c.worst, cap(c.worst))), el('td', { class: 'num', text: c.findings.length }),
+            el('td', {}, c.findings.map((f, i) => [i ? ' · ' : null, el('button', { type: 'button', class: 'id-chip', text: f.id, title: f.title, 'aria-label': `${f.id}: ${f.title}. Open details.`, onclick: e => openDrawer(f.id, e.currentTarget) })]))))
+            : el('tr', {}, el('td', { colspan: 6, class: 'empty', text: 'No controls referenced by the current filter.' }))));
+        card.append(el('div', { class: 'tbl-wrap' }, table));
+      }
+      panel.append(card);
+
+      const dfcCard = el('article', { class: 'card' },
+        el('h3', {}, `${DFC_CIS.standard}: control detail`, el('span', { class: 'sub', text: 'As reported by Defender for Cloud regulatory compliance. Numbering follows the version Defender ships, not v3.0 used in the mapping above.' })));
+      dfcCard.append(el('div', { class: 'tbl-wrap' }, el('table', {},
+        el('thead', {}, el('tr', {}, ['Control', 'Title', 'State', 'Passed', 'Failed'].map((h, i) => el('th', { scope: 'col', class: i >= 3 ? 'num' : null, text: h })))),
+        el('tbody', {}, DFC_CIS.controls.slice().sort((a, b) => naturalCompare(a.control, b.control)).map(c => el('tr', {},
+          el('td', { text: c.control }), el('td', { text: c.title }),
+          el('td', {}, dot(c.state === 'Passed' ? 'pass' : c.state === 'Failed' ? 'fail' : 'low', c.state)),
+          el('td', { class: 'num', text: fmt(c.passed) }), el('td', { class: 'num', text: fmt(c.failed) })))))));
+      panel.append(dfcCard);
+    }
+
+    /* =========================================================
+       DRAWER
+       ========================================================= */
+    const drawer = $('#drawer'), backdrop = $('#backdrop');
+    function openDrawer(id, returnEl) {
+      const f = FINDINGS.find(x => x.id === id);
+      if (!f) return;
+      state.drawerId = id;
+      state.drawerReturnEl = returnEl || document.activeElement;
+      const mapping = el('dl', {});
+      for (const fw of Object.values(FRAMEWORKS)) {
+        if (fw.taxonomy && !f[fw.key].length) continue; // taxonomies only appear when the finding maps to them
+        mapping.append(el('dt', { text: fw.long }));
+        if (!f[fw.key].length) mapping.append(el('dd', { text: 'Not mapped' }));
+        for (const cid of f[fw.key]) mapping.append(el('dd', {}, el('strong', { text: cid }), ' ', CONTROL_NAMES[cid] || ''));
+      }
+      const steps = f.remediation.split(/(?<=\.)\s+(?=[A-Z])/).filter(Boolean);
+      drawer.replaceChildren(...[
+        el('header', {}, el('h2', { id: 'drawer-title', text: `${f.id} · ${f.title}` }), el('button', { type: 'button', class: 'close', 'aria-label': 'Close details', text: 'Close', onclick: closeDrawer })),
+        el('div', { class: 'badges' }, el('span', { class: 'badge' }, dot(f.domain, DOMAINS[f.domain])), el('span', { class: 'badge' }, dot(f.severity, cap(f.severity))),
+          el('span', { class: 'badge' }, dot(f.status, STATUS_LABEL[f.status])), el('span', { class: 'badge', text: f.source }), el('span', { class: 'badge', text: f.category })),
+        el('h4', { text: 'Scope' }), el('p', { text: f.scope }),
+        el('h4', { text: 'Affected' }), el('p', { text: f.affected ? `${fmt(f.affected)} ${f.affectedUnit}` : 'None' }),
+        el('h4', { text: 'Description' }), el('p', { text: f.description }),
+        el('h4', { text: 'Remediation' }), steps.length > 1 ? el('ol', {}, steps.map(s => el('li', { text: s }))) : el('p', { text: f.remediation }),
+        el('h4', { text: 'Framework mapping' }), mapping,
+        f.atlas.length ? [el('h4', { text: 'Related threat techniques (MITRE ATLAS)' }), el('ul', { style: 'padding-left:1.2rem;margin:0.2rem 0' }, f.atlas.map(t => el('li', {}, el('strong', { text: t }), ' ', CONTROL_NAMES[t] || '')))] : null,
+        el('h4', { text: 'Detected' }), el('p', { text: f.detected })].flat(Infinity).filter(Boolean));
+      drawer.hidden = false; backdrop.hidden = false;
+      drawer.focus();
+    }
+    function closeDrawer() {
+      drawer.hidden = true; backdrop.hidden = true;
+      state.drawerId = null;
+      if (state.drawerReturnEl && document.body.contains(state.drawerReturnEl)) state.drawerReturnEl.focus();
+    }
+    backdrop.addEventListener('click', closeDrawer);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !drawer.hidden) closeDrawer(); });
+
+    /* =========================================================
+       FILTER EVENTS
+       ========================================================= */
+    $('#f-domain').addEventListener('change', e => { state.filters.domain = e.target.value; render(); });
+    $('#f-status').addEventListener('change', e => { state.filters.status = e.target.value; render(); });
+    $('#f-framework').addEventListener('change', e => { state.filters.framework = e.target.value; render(); });
+    $('#f-control').addEventListener('input', e => { state.filters.control = e.target.value; render(); });
+    $('#f-search').addEventListener('input', e => { state.filters.q = e.target.value; render(); });
+    $('#f-reset').addEventListener('click', () => {
+      state.filters = { domain: 'all', severities: new Set(SEVERITIES), status: 'all', framework: 'all', control: '', q: '' };
+      state.cveFilters = { exploitOnly: false, criticalOnly: false };
+      render();
+    });
+
+    const initialTab = location.hash.slice(1);
+    if (TABS.some(t => t.id === initialTab)) state.tab = initialTab;
+    window.addEventListener('hashchange', () => { const id = location.hash.slice(1); if (TABS.some(t => t.id === id) && id !== state.tab) setTab(id); });
+    render();
+  </script>
+</body>
+</html>
